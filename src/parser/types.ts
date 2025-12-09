@@ -52,12 +52,27 @@ export interface NoteGroup {
   nabcParsed?: NABCGlyphDescriptor[];
   range: Range;
   notes: Note[];
+  custos?: Custos;
+  attributes?: GabcAttribute[];
 }
 
 export interface Note {
   pitch: string;
   shape: NoteShape;
   modifiers: NoteModifier[];
+  range: Range;
+  fusion?: boolean; // Indicates this note is part of a fusion (@)
+}
+
+export interface Custos {
+  type: 'auto' | 'explicit'; // z0 or +pitch
+  pitch?: string;
+  range: Range;
+}
+
+export interface GabcAttribute {
+  name: string;
+  value?: string;
   range: Range;
 }
 
@@ -128,6 +143,7 @@ export interface NABCGlyphDescriptor {
   subpunctis?: NABCSubpunctis;
   prepunctis?: NABCPrepunctis;
   range?: Range;
+  fusion?: NABCGlyphDescriptor; // Right side of fusion (!)
 }
 
 export enum NABCBasicGlyph {
@@ -185,13 +201,13 @@ export enum NABCGlyphModifier {
 }
 
 export interface NABCSubpunctis {
-  count?: number;
-  modifier?: 'S' | 'G' | 'M';
+  count: number; // Mandatory positive number
+  modifier?: 't' | 'u' | 'v' | 'w' | 'x' | 'y'; // St. Gall modifiers
   range?: Range;
 }
 
 export interface NABCPrepunctis {
-  count?: number;
-  modifier?: 'S' | 'G' | 'M';
+  count: number; // Mandatory positive number
+  modifier?: 't' | 'u' | 'v' | 'w' | 'x' | 'y'; // St. Gall modifiers
   range?: Range;
 }

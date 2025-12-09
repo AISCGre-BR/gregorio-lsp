@@ -25,6 +25,21 @@ export function parseNABCSnippet(nabc: string, startPos?: Position): NABCGlyphDe
   // Remove all whitespace from NABC snippet
   const trimmed = nabc.trim().replace(/\s+/g, '');
 
+  // Check for fusion (!) - parse left and right sides recursively
+  const fusionIndex = trimmed.indexOf('!');
+  if (fusionIndex > 0) {
+    const left = trimmed.substring(0, fusionIndex);
+    const right = trimmed.substring(fusionIndex + 1);
+    
+    const leftDescriptor = parseNABCSnippet(left, startPos);
+    const rightDescriptor = parseNABCSnippet(right, startPos);
+    
+    if (leftDescriptor && rightDescriptor) {
+      leftDescriptor.fusion = rightDescriptor;
+      return leftDescriptor;
+    }
+  }
+
   // Check for subpunctis/prepunctis first
   if (trimmed.startsWith('su') || trimmed.startsWith('pp')) {
     return parseSubpunctisPrepunctis(trimmed, startPos);
@@ -138,23 +153,29 @@ function parseBasicGlyph(code: string): NABCBasicGlyph | null {
 
 /**
  * Parse subpunctis or prepunctis descriptor
+ * Format: su/pp + optional modifier (t,u,v,w,x,y) + mandatory count (1-9)
  */
 function parseSubpunctisPrepunctis(nabc: string, startPos?: Position): NABCGlyphDescriptor | null {
   const type = nabc.substring(0, 2);
   let pos = 2;
 
-  // Parse optional count (digit)
+  // Parse optional modifier (t, u, v, w, x, y for St. Gall)
+  let modifier: 't' | 'u' | 'v' | 'w' | 'x' | 'y' | undefined;
+  if (pos < nabc.length && /[tuvwxy]/.test(nabc[pos])) {
+    modifier = nabc[pos] as 't' | 'u' | 'v' | 'w' | 'x' | 'y';
+    pos++;
+  }
+
+  // Parse mandatory count (digit)
   let count: number | undefined;
   if (pos < nabc.length && /[1-9]/.test(nabc[pos])) {
     count = parseInt(nabc[pos]);
     pos++;
   }
 
-  // Parse optional modifier (S, G, M)
-  let modifier: 'S' | 'G' | 'M' | undefined;
-  if (pos < nabc.length && /[SGM]/.test(nabc[pos])) {
-    modifier = nabc[pos] as 'S' | 'G' | 'M';
-    pos++;
+  // Count is mandatory
+  if (count === undefined) {
+    return null;
   }
 
   // Create appropriate descriptor
