@@ -277,6 +277,8 @@ export class GabcParser {
   private parseNoteGroup(gabc: string, nabc: string[], start: Position): NoteGroup | null {
     const notes: Note[] = [];
     const end = this.getCurrentPosition();
+    let custos: any = undefined;
+    const attributes: any[] = [];
 
     // Parse individual notes from GABC string
     let i = 0;
@@ -287,6 +289,37 @@ export class GabcParser {
       if (/[\s\/`!]/.test(char)) {
         i++;
         continue;
+      }
+
+      // Parse custos (z0 or +pitch)
+      if (char === 'z' && i + 1 < gabc.length && gabc[i + 1] === '0') {
+        custos = {
+          type: 'auto',
+          range: { start, end }
+        };
+        i += 2;
+        continue;
+      }
+
+      // Parse explicit custos (+pitch)
+      if (char === '+' && i + 1 < gabc.length && /[a-n]/.test(gabc[i + 1])) {
+        custos = {
+          type: 'explicit',
+          pitch: gabc[i + 1],
+          range: { start, end }
+        };
+        i += 2;
+        continue;
+      }
+
+      // Parse attributes [name:value] or [name]
+      if (char === '[') {
+        const attrResult = this.parseAttribute(gabc.substring(i), start);
+        if (attrResult) {
+          attributes.push(attrResult.attribute);
+          i += attrResult.length;
+          continue;
+        }
       }
 
       // Check for pitch letters (lowercase or uppercase)
@@ -490,7 +523,51 @@ export class GabcParser {
       nabc: nabc.length > 0 ? nabc : undefined,
       nabcParsed: nabc.length > 0 ? parseNABCSnippets(nabc, start) : undefined,
       range: { start, end },
-      notes
+      notes,
+      custos: custos || undefined,
+      attributes: attributes.length > 0 ? attributes : undefined
+    };
+  }
+
+  /**
+   * Parse GABC attribute [name:value] or [name]
+   * Returns the attribute and the length of characters consumed
+   */
+  private parseAttribute(text: string, start: Position): { attribute: any; length: number } | null {
+    if (!text.startsWith('[')) {
+      return null;
+    }
+
+    const closingBracket = text.indexOf(']');
+    if (closingBracket === -1) {
+      return null;
+    }
+
+    const content = text.substring(1, closingBracket);
+    const colonIndex = content.indexOf(':');
+
+    let name: string;
+    let value: string | undefined;
+
+    if (colonIndex === -1) {
+      // Attribute without value, e.g., [nocustos]
+      name = content.trim();
+      value = undefined;
+    } else {
+      // Attribute with value, e.g., [shape:stroke]
+      name = content.substring(0, colonIndex).trim();
+      value = content.substring(colonIndex + 1).trim();
+    }
+
+    const attribute = {
+      name,
+      value,
+      range: { start, end: start }
+    };
+
+    return {
+      attribute,
+      length: closingBracket + 1
     };
   }
 
