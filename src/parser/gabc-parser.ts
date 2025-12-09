@@ -18,6 +18,7 @@ import {
   Range,
   Comment
 } from './types';
+import { parseNABCSnippets } from './nabc-parser';
 
 export class GabcParser {
   private text: string;
@@ -487,6 +488,7 @@ export class GabcParser {
     return {
       gabc,
       nabc: nabc.length > 0 ? nabc : undefined,
+      nabcParsed: nabc.length > 0 ? parseNABCSnippets(nabc, start) : undefined,
       range: { start, end },
       notes
     };

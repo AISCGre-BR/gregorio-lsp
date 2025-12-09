@@ -49,6 +49,7 @@ export interface Syllable {
 export interface NoteGroup {
   gabc: string;
   nabc?: string[];
+  nabcParsed?: NABCGlyphDescriptor[];
   range: Range;
   notes: Note[];
 }
@@ -114,4 +115,83 @@ export interface LineBreak {
 export interface StyleTag {
   type: 'bold' | 'italic' | 'color' | 'small_caps' | 'teletype' | 'underline';
   range: Range;
+}
+
+// ========================================
+// NABC (St. Gall Notation) Types
+// ========================================
+
+export interface NABCGlyphDescriptor {
+  basicGlyph: NABCBasicGlyph;
+  modifiers?: NABCGlyphModifier[];
+  pitch?: string;
+  subpunctis?: NABCSubpunctis;
+  prepunctis?: NABCPrepunctis;
+  range?: Range;
+}
+
+export enum NABCBasicGlyph {
+  // Single notes
+  Virga = 'vi',
+  Punctum = 'pu',
+  Tractulus = 'ta',
+  Gravis = 'gr',
+  
+  // Two-note neumes
+  Clivis = 'cl',
+  Pes = 'pe',
+  
+  // Three-note neumes
+  Porrectus = 'po',
+  Torculus = 'to',
+  Climacus = 'ci',
+  Scandicus = 'sc',
+  
+  // Four-note neumes
+  PorrectusFlexus = 'pf',
+  ScandicusFlexus = 'sf',
+  TorculusResupinus = 'tr',
+  
+  // Stropha variants
+  Stropha = 'st',
+  Distropha = 'ds',
+  Tristropha = 'ts',
+  
+  // Other neumes
+  Trigonus = 'tg',
+  Bivirga = 'bv',
+  Trivirga = 'tv',
+  PressusMainor = 'pr',
+  PressusMinor = 'pi',
+  VirgaStrata = 'vs',
+  Oriscus = 'or',
+  Salicus = 'sa',
+  PesQuassus = 'pq',
+  Quilisma3Loops = 'ql',
+  Quilisma2Loops = 'qi',
+  PesStratus = 'pt',
+  Nihil = 'ni',
+  Uncinus = 'un',
+  OriscusClivis = 'oc'
+}
+
+export enum NABCGlyphModifier {
+  MarkModification = 'S',
+  GroupingModification = 'G',
+  MelodicModification = 'M',
+  Episema = '-',
+  AugmentiveLiquescence = '>',
+  DiminutiveLiquescence = '~'
+}
+
+export interface NABCSubpunctis {
+  count?: number;
+  modifier?: 'S' | 'G' | 'M';
+  range?: Range;
+}
+
+export interface NABCPrepunctis {
+  count?: number;
+  modifier?: 'S' | 'G' | 'M';
+  range?: Range;
 }
