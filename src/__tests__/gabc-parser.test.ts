@@ -111,7 +111,15 @@ nabc-lines: 1;
       const parser = new GabcParser(text);
       const result = parser.parse();
 
-      const syllable = result.notation.syllables.find(s => s.notes.length > 0);
+      // Find syllable with actual notes (not just clefs) - clefs should have pitch matching clef pattern
+      const syllable = result.notation.syllables.find(s => {
+        if (s.notes.length === 0 || s.notes[0].notes.length === 0) return false;
+        const firstNote = s.notes[0].notes[0];
+        // Skip if it's a clef note (c4, f3, etc.)
+        if (s.clef) return false;
+        return true;
+      });
+      
       expect(syllable).toBeDefined();
       
       if (syllable && syllable.notes[0].notes.length > 0) {

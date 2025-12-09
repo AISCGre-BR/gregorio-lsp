@@ -38,6 +38,7 @@ export class GabcParser {
 
   parse(): ParsedDocument {
     const headers = this.parseHeaders();
+    this.skipWhitespaceAndComments(); // Skip whitespace after header separator
     const notation = this.parseNotation();
 
     return {
@@ -94,7 +95,7 @@ export class GabcParser {
 
           if (char === '\n') {
             if (!multiline && value.trim().length > 0) {
-              multiline = true;
+              multiline = false;
             }
             this.advance(1);
             continue;
@@ -124,31 +125,14 @@ export class GabcParser {
         break;
       }
 
-      // Check for parentheses (note group)
-      if (this.peek() === '(') {
-        const syllable = this.parseSyllable();
-        if (syllable) {
-          syllables.push(syllable);
-        }
+      // Parse syllable (text + optional notation)
+      const syllable = this.parseSyllable();
+      
+      if (syllable) {
+        syllables.push(syllable);
       } else {
-        // Parse text outside parentheses
-        const textStart = this.getCurrentPosition();
-        let text = '';
-        
-        while (this.pos < this.text.length && this.peek() !== '(' && this.peek() !== '%') {
-          text += this.peek();
-          this.advance(1);
-        }
-
-        if (text.trim().length > 0) {
-          // Create syllable with text only
-          const textEnd = this.getCurrentPosition();
-          syllables.push({
-            text: text.trim(),
-            notes: [],
-            range: { start: textStart, end: textEnd }
-          });
-        }
+        // If parseSyllable returns null, we need to advance to avoid infinite loop
+        this.advance(1);
       }
     }
 
@@ -165,8 +149,32 @@ export class GabcParser {
     const notes: NoteGroup[] = [];
     let clef: Clef | undefined;
     let bar: Bar | undefined;
+    let textWithStyles = '';
+    let text = '';
+
+    // Parse text before parentheses (may contain style tags)
+    while (this.pos < this.text.length && this.peek() !== '(' && this.peek() !== '%') {
+      if (this.peek() === '\\' && this.pos + 1 < this.text.length && this.text[this.pos + 1] === '\n') {
+        this.advance(2); // Skip line continuation
+        continue;
+      }
+      textWithStyles += this.peek();
+      this.advance(1);
+    }
+
+    // Remove style tags for plain text
+    text = this.removeStyleTags(textWithStyles.trim());
 
     if (this.peek() !== '(') {
+      if (text.length > 0 || textWithStyles.trim().length > 0) {
+        const end = this.getCurrentPosition();
+        return {
+          text: text || textWithStyles.trim(),
+          textWithStyles: textWithStyles.trim() !== text ? textWithStyles.trim() : undefined,
+          notes: [],
+          range: { start, end }
+        };
+      }
       return null;
     }
 
@@ -175,33 +183,40 @@ export class GabcParser {
     const noteStart = this.getCurrentPosition();
     let gabcContent = '';
     let nabcSnippets: string[] = [];
+    let inNabc = false;
 
     while (this.pos < this.text.length && this.peek() !== ')') {
       const char = this.peek();
 
       if (char === '|') {
         // NABC separator
-        if (gabcContent.trim().length > 0) {
-          // Save GABC content
-          const noteGroup = this.parseNoteGroup(gabcContent, nabcSnippets, noteStart);
-          if (noteGroup) {
-            notes.push(noteGroup);
-          }
-          gabcContent = '';
-          nabcSnippets = [];
+        if (!inNabc && gabcContent.trim().length > 0) {
+          // This is first NABC separator, gabcContent is GABC
+          inNabc = true;
         }
-        this.advance(1);
         
-        // Parse NABC snippet
-        const nabcStart = this.pos;
-        let nabcContent = '';
-        while (this.pos < this.text.length && this.peek() !== ')' && this.peek() !== '|') {
-          nabcContent += this.peek();
+        if (inNabc) {
+          // Save previous NABC snippet if any
+          const nabcStart = this.pos + 1;
+          this.advance(1); // Skip '|'
+          
+          let nabcContent = '';
+          while (this.pos < this.text.length && this.peek() !== ')' && this.peek() !== '|') {
+            nabcContent += this.peek();
+            this.advance(1);
+          }
+          
+          if (nabcContent.length > 0) {
+            nabcSnippets.push(nabcContent);
+          }
+          continue;
+        } else {
           this.advance(1);
         }
-        nabcSnippets.push(nabcContent);
       } else {
-        gabcContent += char;
+        if (!inNabc) {
+          gabcContent += char;
+        }
         this.advance(1);
       }
     }
@@ -210,7 +225,13 @@ export class GabcParser {
       this.advance(1);
     }
 
-    // Parse final note group
+    // Parse clef if present
+    clef = this.parseClef(gabcContent);
+    
+    // Parse bar if present
+    bar = this.parseBar(gabcContent);
+
+    // Parse note group if it's not just a clef or bar
     if (gabcContent.trim().length > 0) {
       const noteGroup = this.parseNoteGroup(gabcContent, nabcSnippets, noteStart);
       if (noteGroup) {
@@ -218,19 +239,38 @@ export class GabcParser {
       }
     }
 
-    // Parse clef if present
-    clef = this.parseClef(gabcContent);
-    bar = this.parseBar(gabcContent);
-
     const end = this.getCurrentPosition();
 
     return {
-      text: '',
+      text: text || textWithStyles.trim(),
+      textWithStyles: textWithStyles.trim() !== text && textWithStyles.trim().length > 0 ? textWithStyles.trim() : undefined,
       notes,
       range: { start, end },
       clef,
       bar
     };
+  }
+
+  private removeStyleTags(text: string): string {
+    // Remove all GABC style tags
+    let result = text;
+    const styleTags = [
+      /<b>/g, /<\/b>/g,           // Bold
+      /<i>/g, /<\/i>/g,           // Italic
+      /<sc>/g, /<\/sc>/g,         // Small caps
+      /<ul>/g, /<\/ul>/g,         // Underline
+      /<tt>/g, /<\/tt>/g,         // Typewriter
+      /<c>/g, /<\/c>/g,           // Colored
+      /<v>.*?<\/v>/g,             // Color with value
+      /<alt>.*?<\/alt>/g,         // Alternative text
+      /<\/alt>/g                  // Alternative text end
+    ];
+    
+    for (const tag of styleTags) {
+      result = result.replace(tag, '');
+    }
+    
+    return result;
   }
 
   private parseNoteGroup(gabc: string, nabc: string[], start: Position): NoteGroup | null {
@@ -242,54 +282,190 @@ export class GabcParser {
     while (i < gabc.length) {
       const char = gabc[i];
 
-      // Check for pitch letters
-      if (/[a-np]/.test(char.toLowerCase())) {
+      // Skip whitespace and separators
+      if (/[\s\/`!]/.test(char)) {
+        i++;
+        continue;
+      }
+
+      // Check for pitch letters (lowercase or uppercase)
+      if (/[a-np]/i.test(char)) {
         const noteStart = { ...start };
+        const isUpperCase = /[A-NP]/.test(char);
         const pitch = char.toLowerCase();
-        let shape = NoteShape.Punctum;
+        let shape = isUpperCase ? NoteShape.PunctumInclinatum : NoteShape.Punctum;
         const modifiers: any[] = [];
 
         i++;
 
-        // Parse modifiers
+        // Parse shape modifiers and note modifiers
         while (i < gabc.length) {
           const mod = gabc[i];
 
+          // Leaning modifiers for punctum inclinatum
+          if (isUpperCase && /[012]/.test(mod)) {
+            i++;
+            continue;
+          }
+
+          // Shape modifiers
           if (mod === 'o') {
+            shape = NoteShape.Oriscus;
+            i++;
+            // Check for oriscus orientation
+            if (i < gabc.length && /[01]/.test(gabc[i])) {
+              i++;
+            }
+          } else if (mod === 'O') {
+            // Oriscus scapus
             shape = NoteShape.Oriscus;
             i++;
           } else if (mod === 'w') {
             shape = NoteShape.Quilisma;
             i++;
-          } else if (mod === 'v') {
-            shape = NoteShape.Virga;
+          } else if (mod === 'W') {
+            // Quilisma quadratum
+            shape = NoteShape.Quilisma;
             i++;
+          } else if (mod === 'v') {
+            if (i + 1 < gabc.length && gabc[i + 1] === 'v') {
+              // bivirga (vv) or trivirga (vvv)
+              i++;
+              if (i + 1 < gabc.length && gabc[i + 1] === 'v') {
+                i++;
+              }
+            } else {
+              shape = NoteShape.Virga;
+              i++;
+            }
           } else if (mod === 'V') {
             shape = NoteShape.VirgaReversa;
             i++;
           } else if (mod === 's') {
-            shape = NoteShape.Stropha;
-            i++;
+            if (i + 1 < gabc.length && gabc[i + 1] === 's') {
+              // distropha (ss) or tristropha (sss)
+              i++;
+              if (i + 1 < gabc.length && gabc[i + 1] === 's') {
+                i++;
+              }
+            } else {
+              shape = NoteShape.Stropha;
+              i++;
+            }
           } else if (mod === 'r') {
             shape = NoteShape.Cavum;
             i++;
-          } else if (mod === '~' || mod === '<' || mod === '>') {
-            shape = NoteShape.Liquescent;
-            modifiers.push({ type: ModifierType.Liquescent });
+            // Check for additional cavum modifiers
+            if (i < gabc.length && /[0-9]/.test(gabc[i])) {
+              i++;
+            }
+          } else if (mod === 'R') {
+            // Punctum quadratum surrounded by lines
+            shape = NoteShape.Cavum;
             i++;
-          } else if (mod === '.') {
+          } else if (mod === '=') {
+            shape = NoteShape.Linea;
+            i++;
+          } else if (mod === 'q') {
+            // Quadratum modifier
+            i++;
+          }
+          
+          // Alteration modifiers
+          else if (mod === 'x') {
+            shape = NoteShape.Flat;
+            i++;
+            if (i < gabc.length && gabc[i] === '?') {
+              // Parenthesized flat
+              i++;
+            }
+          } else if (mod === 'X') {
+            // Soft flat
+            shape = NoteShape.Flat;
+            i++;
+          } else if (mod === '#') {
+            shape = NoteShape.Sharp;
+            i++;
+            if (i < gabc.length && gabc[i] === '#') {
+              // Soft sharp (##)
+              i++;
+            } else if (i < gabc.length && gabc[i] === '?') {
+              // Parenthesized sharp
+              i++;
+            }
+          } else if (mod === 'y') {
+            shape = NoteShape.Natural;
+            i++;
+            if (i < gabc.length && gabc[i] === '?') {
+              // Parenthesized natural
+              i++;
+            }
+          } else if (mod === 'Y') {
+            // Soft natural
+            shape = NoteShape.Natural;
+            i++;
+          }
+          
+          // Rhythmic and expression modifiers
+          else if (mod === '.') {
             modifiers.push({ type: ModifierType.PunctumMora });
             i++;
+            // Support for double punctum mora
+            if (i < gabc.length && gabc[i] === '.') {
+              i++;
+            }
           } else if (mod === '_') {
             modifiers.push({ type: ModifierType.HorizontalEpisema });
             i++;
+            // Parse episema position/bridge modifiers
+            while (i < gabc.length && /[0-5]/.test(gabc[i])) {
+              i++;
+            }
           } else if (mod === "'") {
             modifiers.push({ type: ModifierType.VerticalEpisema });
             i++;
+            // Parse ictus position
+            if (i < gabc.length && /[01]/.test(gabc[i])) {
+              i++;
+            }
           } else if (mod === '-') {
+            // Initio debilis (must be before the note, but we handle it here)
             modifiers.push({ type: ModifierType.InitioDebilis });
             i++;
-          } else {
+          }
+          
+          // Liquescence modifiers
+          else if (mod === '~') {
+            shape = NoteShape.Liquescent;
+            modifiers.push({ type: ModifierType.Liquescent });
+            i++;
+          } else if (mod === '<') {
+            // Augmentive liquescence
+            shape = NoteShape.Liquescent;
+            modifiers.push({ type: ModifierType.Liquescent });
+            i++;
+          } else if (mod === '>') {
+            // Diminutive liquescence
+            shape = NoteShape.Liquescent;
+            modifiers.push({ type: ModifierType.Liquescent });
+            i++;
+          }
+          
+          // Rhythmic signs above/below staff
+          else if (mod === 'r' && i + 1 < gabc.length && /[1-8]/.test(gabc[i + 1])) {
+            // Rhythmic signs (r1-r8)
+            i += 2;
+          }
+          
+          // Other special characters
+          else if (mod === '@') {
+            // Fusion indicator
+            modifiers.push({ type: ModifierType.Fusion });
+            i++;
+          }
+          
+          else {
+            // Unknown modifier or next note
             break;
           }
         }
@@ -303,6 +479,7 @@ export class GabcParser {
           range: { start: noteStart, end: noteEnd }
         });
       } else {
+        // Skip unknown characters
         i++;
       }
     }
@@ -375,11 +552,18 @@ export class GabcParser {
     while (this.pos < this.text.length) {
       const char = this.peek();
 
+      // Don't skip %% (header separator)
+      if (char === '%' && this.peek(2) === '%%') {
+        break;
+      }
+
+      // Skip comments
       if (char === '%') {
         this.parseComment();
         continue;
       }
 
+      // Skip whitespace
       if (/\s/.test(char)) {
         this.advance(1);
         continue;
