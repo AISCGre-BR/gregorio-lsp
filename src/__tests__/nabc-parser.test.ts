@@ -365,4 +365,66 @@ describe('NABC Parser', () => {
       expect(result?.basicGlyph).toBe(NABCBasicGlyph.Virga);
     });
   });
+
+  describe('Significant Letters', () => {
+    it('should parse significant letter lsc2 (celeriter above)', () => {
+      const result = parseNABCSnippet('vilsc2');
+      expect(result).toBeDefined();
+      expect(result?.basicGlyph).toBe(NABCBasicGlyph.Virga);
+      expect(result?.significantLetters).toBeDefined();
+      expect(result?.significantLetters?.length).toBe(1);
+      expect(result?.significantLetters?.[0].type).toBe('ls');
+      expect(result?.significantLetters?.[0].code).toBe('c');
+      expect(result?.significantLetters?.[0].position).toBe(2);
+    });
+
+    it('should parse significant letter lst4 (tenere left)', () => {
+      const result = parseNABCSnippet('pulst4');
+      expect(result?.significantLetters).toBeDefined();
+      expect(result?.significantLetters?.[0].code).toBe('t');
+      expect(result?.significantLetters?.[0].position).toBe(4);
+    });
+
+    it('should parse significant letter lsal1 (altius left upper)', () => {
+      const result = parseNABCSnippet('talsal1');
+      expect(result?.significantLetters).toBeDefined();
+      expect(result?.significantLetters?.[0].code).toBe('al');
+      expect(result?.significantLetters?.[0].position).toBe(1);
+    });
+
+    it('should parse multiple significant letters', () => {
+      const result = parseNABCSnippet('vilse7lsl3');
+      expect(result?.significantLetters).toBeDefined();
+      expect(result?.significantLetters?.length).toBe(2);
+      expect(result?.significantLetters?.[0].code).toBe('e');
+      expect(result?.significantLetters?.[0].position).toBe(7);
+      expect(result?.significantLetters?.[1].code).toBe('l');
+      expect(result?.significantLetters?.[1].position).toBe(3);
+    });
+
+    it('should parse Tironian note lti2 (iusum)', () => {
+      const result = parseNABCSnippet('nilti2');
+      expect(result?.basicGlyph).toBe(NABCBasicGlyph.Nihil);
+      expect(result?.significantLetters).toBeDefined();
+      expect(result?.significantLetters?.[0].type).toBe('lt');
+      expect(result?.significantLetters?.[0].code).toBe('i');
+      expect(result?.significantLetters?.[0].position).toBe(2);
+    });
+
+    it('should parse Tironian note ltsr8 (sursum)', () => {
+      const result = parseNABCSnippet('pultsr8');
+      expect(result?.significantLetters).toBeDefined();
+      expect(result?.significantLetters?.[0].type).toBe('lt');
+      expect(result?.significantLetters?.[0].code).toBe('sr');
+      expect(result?.significantLetters?.[0].position).toBe(8);
+    });
+
+    it('should parse complex example with significant letters', () => {
+      const result = parseNABCSnippet('clMhalse7lsl3');
+      expect(result?.basicGlyph).toBe(NABCBasicGlyph.Clivis);
+      expect(result?.modifiers).toContain(NABCGlyphModifier.MelodicModification);
+      expect(result?.pitch).toBe('a');
+      expect(result?.significantLetters?.length).toBe(2);
+    });
+  });
 });
