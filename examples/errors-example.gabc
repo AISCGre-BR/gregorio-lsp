@@ -1,0 +1,18 @@
+% This file has intentional errors for testing
+
+% Missing name header - should trigger warning
+office-part: Test;
+mode: 1;
+%%
+
+% Line break on first syllable - ERROR
+(z) Test(f)
+
+% NABC without header - ERROR (nabc-lines header is missing)
+Te(f|vi)st(g)
+
+% Quilisma followed by lower pitch - WARNING
+Te(gwf)st
+
+% Clef change on first syllable - ERROR
+(c4) (c3) Test(f)
