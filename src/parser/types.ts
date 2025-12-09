@@ -38,6 +38,7 @@ export interface NotationSection {
 
 export interface Syllable {
   text: string;
+  textWithStyles?: string; // Text including style tags like <b>, <i>, etc.
   notes: NoteGroup[];
   range: Range;
   clef?: Clef;
