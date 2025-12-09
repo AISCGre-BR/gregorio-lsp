@@ -9,6 +9,7 @@ import {
   NABCGlyphModifier,
   NABCSubpunctis,
   NABCPrepunctis,
+  NABCSignificantLetter,
   Range,
   Position
 } from './types';
@@ -97,6 +98,32 @@ export function parseNABCSnippet(nabc: string, startPos?: Position): NABCGlyphDe
       result.pitch = trimmed[pos];
       pos++;
     }
+  }
+
+  // Parse significant letters (ls or lt prefix)
+  const significantLetters: any[] = [];
+  while (pos < trimmed.length) {
+    if (pos + 1 < trimmed.length && trimmed[pos] === 'l') {
+      const nextChar = trimmed[pos + 1];
+      if (nextChar === 's' || nextChar === 't') {
+        const parsed = parseSignificantLetter(trimmed.substring(pos), startPos);
+        if (parsed) {
+          significantLetters.push(parsed.letter);
+          // Move position forward by the total length consumed
+          pos += parsed.length;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  if (significantLetters.length > 0) {
+    result.significantLetters = significantLetters;
   }
 
   if (startPos) {
@@ -197,6 +224,61 @@ function parseSubpunctisPrepunctis(nabc: string, startPos?: Position): NABCGlyph
   }
 
   return descriptor;
+}
+
+/**
+ * Parse significant letter descriptor (ls or lt prefix)
+ * Format: ls/lt + code + position (1-9)
+ * Returns the parsed letter and the total length consumed
+ */
+function parseSignificantLetter(nabc: string, startPos?: Position): { letter: NABCSignificantLetter; length: number } | null {
+  if (nabc.length < 4) { // Minimum: l + s/t + 1char + digit
+    return null;
+  }
+
+  if (nabc[0] !== 'l') {
+    return null;
+  }
+
+  const type = nabc[1];
+  if (type !== 's' && type !== 't') {
+    return null;
+  }
+
+  // Find the first position digit (1-9) after the prefix
+  // Scan forward from position 2 to find code followed by digit
+  let pos = 2;
+  while (pos < nabc.length && !/[1-9]/.test(nabc[pos])) {
+    pos++;
+  }
+
+  if (pos <= 2 || pos >= nabc.length || !/[1-9]/.test(nabc[pos])) {
+    return null;
+  }
+
+  const position = parseInt(nabc[pos]) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  const code = nabc.substring(2, pos);
+
+  if (code.length === 0) {
+    return null;
+  }
+
+  const totalLength = pos + 1; // l + s/t + code + digit
+
+  const result: NABCSignificantLetter = {
+    type: type === 's' ? 'ls' : 'lt',
+    code,
+    position
+  };
+
+  if (startPos) {
+    result.range = {
+      start: startPos,
+      end: { line: startPos.line, character: startPos.character + totalLength }
+    };
+  }
+
+  return { letter: result, length: totalLength };
 }
 
 /**
