@@ -226,9 +226,10 @@ describe('NABC Parser', () => {
   });
 
   describe('Subpunctis and Prepunctis', () => {
-    it('should parse subpunctis (su)', () => {
-      const result = parseNABCSnippet('su');
+    it('should parse subpunctis with count (su1)', () => {
+      const result = parseNABCSnippet('su1');
       expect(result?.subpunctis).toBeDefined();
+      expect(result?.subpunctis?.count).toBe(1);
     });
 
     it('should parse subpunctis with count (su2)', () => {
@@ -237,15 +238,17 @@ describe('NABC Parser', () => {
       expect(result?.subpunctis?.count).toBe(2);
     });
 
-    it('should parse subpunctis with modifier (suS)', () => {
-      const result = parseNABCSnippet('suS');
+    it('should parse subpunctis with modifier (sut1)', () => {
+      const result = parseNABCSnippet('sut1');
       expect(result?.subpunctis).toBeDefined();
-      expect(result?.subpunctis?.modifier).toBe('S');
+      expect(result?.subpunctis?.count).toBe(1);
+      expect(result?.subpunctis?.modifier).toBe('t');
     });
 
-    it('should parse prepunctis (pp)', () => {
-      const result = parseNABCSnippet('pp');
+    it('should parse prepunctis (pp1)', () => {
+      const result = parseNABCSnippet('pp1');
       expect(result?.prepunctis).toBeDefined();
+      expect(result?.prepunctis?.count).toBe(1);
     });
 
     it('should parse prepunctis with count (pp3)', () => {
@@ -254,10 +257,25 @@ describe('NABC Parser', () => {
       expect(result?.prepunctis?.count).toBe(3);
     });
 
-    it('should parse prepunctis with modifier (ppG)', () => {
-      const result = parseNABCSnippet('ppG');
+    it('should parse prepunctis with modifier (ppw2)', () => {
+      const result = parseNABCSnippet('ppw2');
       expect(result?.prepunctis).toBeDefined();
-      expect(result?.prepunctis?.modifier).toBe('G');
+      expect(result?.prepunctis?.count).toBe(2);
+      expect(result?.prepunctis?.modifier).toBe('w');
+    });
+
+    it('should parse subpunctis with tractulus episema (suu3)', () => {
+      const result = parseNABCSnippet('suu3');
+      expect(result?.subpunctis).toBeDefined();
+      expect(result?.subpunctis?.count).toBe(3);
+      expect(result?.subpunctis?.modifier).toBe('u');
+    });
+
+    it('should parse prepunctis with tractulus (ppt2)', () => {
+      const result = parseNABCSnippet('ppt2');
+      expect(result?.prepunctis).toBeDefined();
+      expect(result?.prepunctis?.count).toBe(2);
+      expect(result?.prepunctis?.modifier).toBe('t');
     });
   });
 
