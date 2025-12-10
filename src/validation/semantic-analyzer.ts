@@ -10,6 +10,7 @@ import {
   NoteGroup,
   Note,
   NoteShape,
+  ModifierType,
   NABCGlyphDescriptor,
   Position,
   Range
@@ -145,7 +146,55 @@ export class SemanticAnalyzer {
       const nextNote = i + 1 < notes.length ? notes[i + 1] : null;
       const prevNote = i > 0 ? notes[i - 1] : null;
 
-      // 1. Quilisma followed by equal or lower pitch
+      // 1. Pes quadratum without subsequent note
+      const hasQuadratum = note.modifiers?.some(m => m.type === ModifierType.Quadratum);
+      if (hasQuadratum && !nextNote) {
+        this.warnings.push({
+          code: 'pes-quadratum-missing-note',
+          message: `Pes quadratum at '${note.pitch}' requires a subsequent note. Example: (${note.pitch}q${this.getNextPitchExample(note.pitch)})`,
+          range: note.range,
+          severity: 'warning'
+        });
+      }
+
+      // 2. Quilisma without subsequent note
+      if (note.shape === NoteShape.Quilisma && !nextNote) {
+        this.warnings.push({
+          code: 'quilisma-missing-note',
+          message: `Quilisma at '${note.pitch}' requires a subsequent note. Example: (${note.pitch}w${this.getNextPitchExample(note.pitch)})`,
+          range: note.range,
+          severity: 'warning'
+        });
+      }
+
+      // 3. Oriscus scapus without preceding and/or subsequent note
+      const hasOriscusScapus = note.modifiers?.some(m => m.type === ModifierType.OriscusScapus);
+      if (hasOriscusScapus) {
+        if (!prevNote && !nextNote) {
+          this.warnings.push({
+            code: 'oriscus-scapus-isolated',
+            message: `Oriscus scapus at '${note.pitch}' requires both preceding and subsequent notes. Example: (${this.getPreviousPitchExample(note.pitch)}${note.pitch}O${this.getNextPitchExample(note.pitch)})`,
+            range: note.range,
+            severity: 'warning'
+          });
+        } else if (!prevNote) {
+          this.warnings.push({
+            code: 'oriscus-scapus-missing-preceding',
+            message: `Oriscus scapus at '${note.pitch}' requires a preceding note. Example: (${this.getPreviousPitchExample(note.pitch)}${note.pitch}O${nextNote ? nextNote.pitch : this.getNextPitchExample(note.pitch)})`,
+            range: note.range,
+            severity: 'warning'
+          });
+        } else if (!nextNote) {
+          this.warnings.push({
+            code: 'oriscus-scapus-missing-subsequent',
+            message: `Oriscus scapus at '${note.pitch}' requires a subsequent note. Example: (${prevNote.pitch}${note.pitch}O${this.getNextPitchExample(note.pitch)})`,
+            range: note.range,
+            severity: 'warning'
+          });
+        }
+      }
+
+      // 4. Quilisma followed by equal or lower pitch
       if (note.shape === NoteShape.Quilisma && nextNote) {
         if (this.comparePitch(nextNote.pitch, note.pitch) <= 0) {
           this.warnings.push({
@@ -194,6 +243,31 @@ export class SemanticAnalyzer {
               range: nextNote.range
             }]
           });
+        }
+      }
+
+      // 4. Pes stratus followed by equal or higher pitch
+      if (note.shape === NoteShape.Punctum && this.hasStrataModifier(note) && nextNote) {
+        // Check if this is part of a pes (current note followed by higher note forming pes)
+        if (i + 1 < notes.length) {
+          const pesNote = notes[i + 1];
+          // If next note forms a pes and has strata, check the note after
+          if (this.hasStrataModifier(pesNote) && this.comparePitch(pesNote.pitch, note.pitch) > 0) {
+            // This is a pes stratus, check if followed by equal or higher
+            const noteAfterPes = i + 2 < notes.length ? notes[i + 2] : null;
+            if (noteAfterPes && this.comparePitch(noteAfterPes.pitch, pesNote.pitch) >= 0) {
+              this.warnings.push({
+                code: 'pes-stratus-equal-or-higher',
+                message: `Pes stratus ending at '${pesNote.pitch}' followed by equal or higher pitch '${noteAfterPes.pitch}'. This may cause placement issues.`,
+                range: pesNote.range,
+                severity: 'warning',
+                relatedInfo: [{
+                  message: 'Following note',
+                  range: noteAfterPes.range
+                }]
+              });
+            }
+          }
         }
       }
     }
@@ -304,6 +378,22 @@ export class SemanticAnalyzer {
     const after = quilismaIndex + 1 < notes.length ? notes[quilismaIndex + 1].pitch : '';
     
     return `(${before}!${quilisma}${after})`;
+  }
+
+  private getNextPitchExample(pitch: string): string {
+    // Return a pitch one step higher for examples
+    const pitchOrder = 'abcdefghijklmn';
+    const idx = pitchOrder.indexOf(pitch.toLowerCase());
+    if (idx === -1 || idx >= pitchOrder.length - 1) return 'g'; // default
+    return pitchOrder[idx + 1];
+  }
+
+  private getPreviousPitchExample(pitch: string): string {
+    // Return a pitch one step lower for examples
+    const pitchOrder = 'abcdefghijklmn';
+    const idx = pitchOrder.indexOf(pitch.toLowerCase());
+    if (idx === -1 || idx <= 0) return 'd'; // default
+    return pitchOrder[idx - 1];
   }
 
   private createZeroRange(): Range {

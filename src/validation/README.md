@@ -109,9 +109,15 @@ console.log(`${errors.length} errors, ${warnings.length} warnings, ${hints.lengt
 | `missing-name-header` | Header `name:` ausente | Sem `name:...;` no cabeçalho |
 | `duplicate-header` | Header definido múltiplas vezes | `mode: 1;` ... `mode: 6;` |
 | `too-many-annotations` | Mais de 2 anotações | 3+ linhas `annotation:` |
-| `quilisma-equal-or-lower` | Quilisma seguido de nota ≤ | `(gwg)`, `(gwf)` |
+| `pes-quadratum-missing-note` | Pes quadratum sem nota subsequente | `(eq)` → `(eqg)` |
+| `quilisma-missing-note` | Quilisma sem nota subsequente | `(ew)` → `(ewf)` |
+| `oriscus-scapus-isolated` | Oriscus scapus isolado | `(eO)` → `(deOf)` |
+| `oriscus-scapus-missing-preceding` | Oriscus scapus sem nota precedente | `(eOf)` → `(deOf)` |
+| `oriscus-scapus-missing-subsequent` | Oriscus scapus sem nota subsequente | `(deO)` → `(deOf)` |
+| `quilisma-equal-or-lower` | Quilisma seguido de nota ≤ | `(gwg)`, `(gwf)` → `(gwh)` |
 | `quilisma-pes-preceded-by-higher` | Quilisma-pes após nota ≥ | `(h) te(gwh)` |
-| `virga-strata-equal-or-higher` | Virga strata seguida de nota ≥ | `(ffo)(f)` |
+| `virga-strata-equal-or-higher` | Virga strata seguida de nota ≥ | `(ffo)(f)` → `(ffo)(d)` |
+| `pes-stratus-equal-or-higher` | Pes stratus seguido de nota ≥ | `(eeo)(e)` → `(eeo)(d)` |
 
 ### Info (Sugestões, Não Afetam Compilação)
 
@@ -156,4 +162,4 @@ Execute os testes do analisador semântico:
 npm test -- semantic-analyzer.test
 ```
 
-**19 testes** cobrem todos os cenários de validação.
+**27 testes** cobrem todos os cenários de validação.

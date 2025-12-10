@@ -104,10 +104,12 @@ export enum ModifierType {
   VerticalEpisema = 'vertical_episema',
   Liquescent = 'liquescent',
   Oriscus = 'oriscus',
+  OriscusScapus = 'oriscus_scapus',
   Quilisma = 'quilisma',
   Fusion = 'fusion',
   Cavum = 'cavum',
-  Strata = 'strata'
+  Strata = 'strata',
+  Quadratum = 'quadratum'
 }
 
 export interface Clef {

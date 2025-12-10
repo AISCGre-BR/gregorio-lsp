@@ -252,6 +252,133 @@ nabc-lines: 1;
     // This is a placeholder for when that parsing is implemented
   });
 
+  describe('Pes Quadratum Validation', () => {
+    it('should warn when pes quadratum has no subsequent note', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(eq)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const pesWarning = diagnostics.find(d => d.code === 'pes-quadratum-missing-note');
+      expect(pesWarning).toBeDefined();
+      expect(pesWarning?.severity).toBe('warning');
+      expect(pesWarning?.message).toContain('Pes quadratum');
+      expect(pesWarning?.message).toContain('subsequent note');
+    });
+
+    it('should not warn when pes quadratum has subsequent note', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(eqg)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const pesWarning = diagnostics.find(d => d.code === 'pes-quadratum-missing-note');
+      expect(pesWarning).toBeUndefined();
+    });
+  });
+
+  describe('Quilisma Missing Note Validation', () => {
+    it('should warn when quilisma has no subsequent note', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(ew)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const quilismaWarning = diagnostics.find(d => d.code === 'quilisma-missing-note');
+      expect(quilismaWarning).toBeDefined();
+      expect(quilismaWarning?.severity).toBe('warning');
+      expect(quilismaWarning?.message).toContain('Quilisma');
+      expect(quilismaWarning?.message).toContain('subsequent note');
+    });
+
+    it('should not warn when quilisma has subsequent note', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(ewf)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const quilismaWarning = diagnostics.find(d => d.code === 'quilisma-missing-note');
+      expect(quilismaWarning).toBeUndefined();
+    });
+  });
+
+  describe('Oriscus Scapus Validation', () => {
+    it('should warn when oriscus scapus is isolated', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(eO)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const oriscusWarning = diagnostics.find(d => d.code === 'oriscus-scapus-isolated');
+      expect(oriscusWarning).toBeDefined();
+      expect(oriscusWarning?.severity).toBe('warning');
+      expect(oriscusWarning?.message).toContain('Oriscus scapus');
+      expect(oriscusWarning?.message).toContain('preceding and subsequent');
+    });
+
+    it('should warn when oriscus scapus has no preceding note', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(eOf)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const oriscusWarning = diagnostics.find(d => d.code === 'oriscus-scapus-missing-preceding');
+      expect(oriscusWarning).toBeDefined();
+      expect(oriscusWarning?.severity).toBe('warning');
+      expect(oriscusWarning?.message).toContain('preceding note');
+    });
+
+    it('should warn when oriscus scapus has no subsequent note', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(deO)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const oriscusWarning = diagnostics.find(d => d.code === 'oriscus-scapus-missing-subsequent');
+      expect(oriscusWarning).toBeDefined();
+      expect(oriscusWarning?.severity).toBe('warning');
+      expect(oriscusWarning?.message).toContain('subsequent note');
+    });
+
+    it('should not warn when oriscus scapus has both preceding and subsequent notes', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(deOf)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const oriscusWarning = diagnostics.find(d => 
+        d.code === 'oriscus-scapus-isolated' || 
+        d.code === 'oriscus-scapus-missing-preceding' ||
+        d.code === 'oriscus-scapus-missing-subsequent'
+      );
+      expect(oriscusWarning).toBeUndefined();
+    });
+  });
+
   describe('Quilismatic Connector Info', () => {
     it('should provide info about missing connector in quilismatic sequence', () => {
       const gabc = `name: Test;
