@@ -281,6 +281,19 @@ nabc-lines: 1;
       const pesWarning = diagnostics.find(d => d.code === 'pes-quadratum-missing-note');
       expect(pesWarning).toBeUndefined();
     });
+
+    it('should not warn when pes quadratum has fusion connector', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(eq@f)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const pesWarning = diagnostics.find(d => d.code === 'pes-quadratum-missing-note');
+      expect(pesWarning).toBeUndefined();
+    });
   });
 
   describe('Quilisma Missing Note Validation', () => {
@@ -304,6 +317,32 @@ nabc-lines: 1;
       const gabc = `name: Test;
 %%
 (c4) Al(ewf)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const quilismaWarning = diagnostics.find(d => d.code === 'quilisma-missing-note');
+      expect(quilismaWarning).toBeUndefined();
+    });
+
+    it('should not warn when quilisma has fusion connector', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(gw@h)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const quilismaWarning = diagnostics.find(d => d.code === 'quilisma-missing-note');
+      expect(quilismaWarning).toBeUndefined();
+    });
+
+    it('should not warn when quilisma has fusion connector before it', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(f@gwh)le(g)ia.(f)`;
 
       const parser = new GabcParser(gabc);
       const document = parser.parse();
@@ -365,6 +404,23 @@ nabc-lines: 1;
       const gabc = `name: Test;
 %%
 (c4) Al(deOf)le(g)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const oriscusWarning = diagnostics.find(d => 
+        d.code === 'oriscus-scapus-isolated' || 
+        d.code === 'oriscus-scapus-missing-preceding' ||
+        d.code === 'oriscus-scapus-missing-subsequent'
+      );
+      expect(oriscusWarning).toBeUndefined();
+    });
+
+    it('should not warn when oriscus scapus has fusion connectors', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(d@eO@f)le(g)ia.(f)`;
 
       const parser = new GabcParser(gabc);
       const document = parser.parse();

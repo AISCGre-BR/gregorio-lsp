@@ -148,7 +148,8 @@ export class SemanticAnalyzer {
 
       // 1. Pes quadratum without subsequent note
       const hasQuadratum = note.modifiers?.some(m => m.type === ModifierType.Quadratum);
-      if (hasQuadratum && !nextNote) {
+      const hasFusion = note.modifiers?.some(m => m.type === ModifierType.Fusion);
+      if (hasQuadratum && !nextNote && !hasFusion) {
         this.warnings.push({
           code: 'pes-quadratum-missing-note',
           message: `Pes quadratum at '${note.pitch}' requires a subsequent note. Example: (${note.pitch}q${this.getNextPitchExample(note.pitch)})`,
@@ -158,7 +159,8 @@ export class SemanticAnalyzer {
       }
 
       // 2. Quilisma without subsequent note
-      if (note.shape === NoteShape.Quilisma && !nextNote) {
+      const noteFusion = note.modifiers?.some(m => m.type === ModifierType.Fusion);
+      if (note.shape === NoteShape.Quilisma && !nextNote && !noteFusion) {
         this.warnings.push({
           code: 'quilisma-missing-note',
           message: `Quilisma at '${note.pitch}' requires a subsequent note. Example: (${note.pitch}w${this.getNextPitchExample(note.pitch)})`,
@@ -169,25 +171,31 @@ export class SemanticAnalyzer {
 
       // 3. Oriscus scapus without preceding and/or subsequent note
       const hasOriscusScapus = note.modifiers?.some(m => m.type === ModifierType.OriscusScapus);
+      const prevNoteFusion = prevNote?.modifiers?.some(m => m.type === ModifierType.Fusion);
+      const currentNoteFusion = note.modifiers?.some(m => m.type === ModifierType.Fusion);
+      
       if (hasOriscusScapus) {
-        if (!prevNote && !nextNote) {
+        const hasValidPrev = prevNote || prevNoteFusion;
+        const hasValidNext = nextNote || currentNoteFusion;
+        
+        if (!hasValidPrev && !hasValidNext) {
           this.warnings.push({
             code: 'oriscus-scapus-isolated',
             message: `Oriscus scapus at '${note.pitch}' requires both preceding and subsequent notes. Example: (${this.getPreviousPitchExample(note.pitch)}${note.pitch}O${this.getNextPitchExample(note.pitch)})`,
             range: note.range,
             severity: 'warning'
           });
-        } else if (!prevNote) {
+        } else if (!hasValidPrev) {
           this.warnings.push({
             code: 'oriscus-scapus-missing-preceding',
             message: `Oriscus scapus at '${note.pitch}' requires a preceding note. Example: (${this.getPreviousPitchExample(note.pitch)}${note.pitch}O${nextNote ? nextNote.pitch : this.getNextPitchExample(note.pitch)})`,
             range: note.range,
             severity: 'warning'
           });
-        } else if (!nextNote) {
+        } else if (!hasValidNext) {
           this.warnings.push({
             code: 'oriscus-scapus-missing-subsequent',
-            message: `Oriscus scapus at '${note.pitch}' requires a subsequent note. Example: (${prevNote.pitch}${note.pitch}O${this.getNextPitchExample(note.pitch)})`,
+            message: `Oriscus scapus at '${note.pitch}' requires a subsequent note. Example: (${prevNote?.pitch || this.getPreviousPitchExample(note.pitch)}${note.pitch}O${this.getNextPitchExample(note.pitch)})`,
             range: note.range,
             severity: 'warning'
           });

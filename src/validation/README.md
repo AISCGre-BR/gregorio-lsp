@@ -109,9 +109,9 @@ console.log(`${errors.length} errors, ${warnings.length} warnings, ${hints.lengt
 | `missing-name-header` | Header `name:` ausente | Sem `name:...;` no cabeçalho |
 | `duplicate-header` | Header definido múltiplas vezes | `mode: 1;` ... `mode: 6;` |
 | `too-many-annotations` | Mais de 2 anotações | 3+ linhas `annotation:` |
-| `pes-quadratum-missing-note` | Pes quadratum sem nota subsequente | `(eq)` → `(eqg)` |
-| `quilisma-missing-note` | Quilisma sem nota subsequente | `(ew)` → `(ewf)` |
-| `oriscus-scapus-isolated` | Oriscus scapus isolado | `(eO)` → `(deOf)` |
+| `pes-quadratum-missing-note` | Pes quadratum sem nota subsequente | `(eq)` → `(eqg)` ou `(eq@f)` |
+| `quilisma-missing-note` | Quilisma sem nota subsequente | `(ew)` → `(ewf)` ou `(gw@h)` |
+| `oriscus-scapus-isolated` | Oriscus scapus isolado | `(eO)` → `(deOf)` ou `(d@eO@f)` |
 | `oriscus-scapus-missing-preceding` | Oriscus scapus sem nota precedente | `(eOf)` → `(deOf)` |
 | `oriscus-scapus-missing-subsequent` | Oriscus scapus sem nota subsequente | `(deO)` → `(deOf)` |
 | `quilisma-equal-or-lower` | Quilisma seguido de nota ≤ | `(gwg)`, `(gwf)` → `(gwh)` |
@@ -162,4 +162,4 @@ Execute os testes do analisador semântico:
 npm test -- semantic-analyzer.test
 ```
 
-**27 testes** cobrem todos os cenários de validação.
+**31 testes** cobrem todos os cenários de validação, incluindo casos com conectores de fusão (@).
