@@ -353,6 +353,7 @@ export class GabcParser {
           } else if (mod === 'O') {
             // Oriscus scapus
             shape = NoteShape.Oriscus;
+            modifiers.push({ type: ModifierType.OriscusScapus });
             i++;
           } else if (mod === 'w') {
             shape = NoteShape.Quilisma;
@@ -402,6 +403,7 @@ export class GabcParser {
             i++;
           } else if (mod === 'q') {
             // Quadratum modifier
+            modifiers.push({ type: ModifierType.Quadratum });
             i++;
           }
           
