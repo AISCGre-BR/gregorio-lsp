@@ -18,6 +18,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { GabcParser } from './parser/gabc-parser';
 import { treeSitterParser } from './parser/tree-sitter-integration';
 import { DocumentValidator } from './validation/validator';
+import { analyzeSemantics } from './validation/semantic-analyzer';
 import { ParseError } from './parser/types';
 
 // Create LSP connection
@@ -117,11 +118,17 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
     parsedDoc = parser.parse();
   }
 
-  // Validate the document
+  // Validate the document with validation rules
   const errors = validator.validate(parsedDoc);
 
+  // Run semantic analysis
+  const semanticErrors = analyzeSemantics(parsedDoc);
+
+  // Combine all errors
+  const allErrors = [...errors, ...semanticErrors];
+
   // Convert to LSP diagnostics
-  const diagnostics: Diagnostic[] = errors.map(error => convertToDiagnostic(error));
+  const diagnostics: Diagnostic[] = allErrors.map(error => convertToDiagnostic(error));
 
   // Send diagnostics to client
   connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });

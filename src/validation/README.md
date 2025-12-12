@@ -98,6 +98,7 @@ console.log(`${errors.length} errors, ${warnings.length} warnings, ${hints.lengt
 | Código | Descrição | Exemplo |
 |--------|-----------|---------|
 | `pipe-without-nabc-lines` | Pipe `\|` usado sem header `nabc-lines:` | `(f\|vi)` sem header |
+| `nabc-alternation-mismatch` | Número de segmentos NABC não corresponde ao header | `nabc-lines: 1;` com `(f\|vi\|ca)` |
 | `line-break-on-first-syllable` | Quebra de linha na primeira sílaba | `(z) Al(f)...` |
 | `nabc-conflicting-liquescence` | Modificadores `>` e `~` juntos | `cl>~` |
 | `nabc-invalid-pitch` | Altura NABC inválida | `vihz` (z inválido) |
@@ -162,4 +163,4 @@ Execute os testes do analisador semântico:
 npm test -- semantic-analyzer.test
 ```
 
-**31 testes** cobrem todos os cenários de validação, incluindo casos com conectores de fusão (@).
+**36 testes** cobrem todos os cenários de validação, incluindo casos com conectores de fusão (@) e alternância NABC.
