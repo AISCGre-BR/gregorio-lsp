@@ -41,6 +41,7 @@ export class SemanticAnalyzer {
     if (document.notation.syllables.length > 0) {
       this.validateFirstSyllable(document.notation.syllables[0]);
       this.validateSyllables(document.notation.syllables, document.headers);
+      this.validateNABCAlternation(document.notation.syllables, document.headers);
     }
 
     // Return all diagnostics sorted by severity
@@ -132,6 +133,56 @@ export class SemanticAnalyzer {
     // Validate NABC if present
     if (noteGroup.nabcParsed && noteGroup.nabcParsed.length > 0) {
       this.validateNABC(noteGroup.nabcParsed);
+    }
+  }
+
+  private validateNABCAlternation(syllables: Syllable[], headers: Map<string, string>): void {
+    const nabcLinesHeader = headers.get('nabc-lines');
+    if (!nabcLinesHeader) {
+      return; // No nabc-lines header, skip this validation
+    }
+
+    const expectedNabcLines = parseInt(nabcLinesHeader, 10);
+    if (isNaN(expectedNabcLines) || expectedNabcLines < 1) {
+      return; // Invalid header value, skip validation
+    }
+
+    // Iterate through all note groups and validate alternation
+    for (const syllable of syllables) {
+      for (const noteGroup of syllable.notes) {
+        if (!noteGroup.nabc || noteGroup.nabc.length === 0) {
+          continue; // No NABC in this note group
+        }
+
+        // Count NABC segments (pipe-separated sections)
+        const nabcSegments = noteGroup.nabc.length;
+
+        // For each NABC line, we expect: GABC | NABC | GABC | NABC | ...
+        // Pattern: starts with GABC, then alternates NABC/GABC
+        // Total segments = 1 (initial GABC) + nabcLines * 2
+        // BUT the notes array contains all notes, so we need to count pipes
+        
+        // Actually, the alternation is: (gabc|nabc1|nabc2|...|nabcN)
+        // So for nabc-lines: 1, we expect: gabc | nabc
+        // For nabc-lines: 2, we expect: gabc | nabc1 | nabc2
+        
+        // Count how many pipe separators exist
+        const pipeCount = nabcSegments;
+        
+        // Expected pattern based on nabc-lines:
+        // nabc-lines: 1 → expects exactly 1 NABC segment
+        // nabc-lines: 2 → expects exactly 2 NABC segments
+        // If there are more segments than declared, it's an error
+        
+        if (pipeCount !== expectedNabcLines) {
+          this.errors.push({
+            code: 'nabc-alternation-mismatch',
+            message: `NABC alternation mismatch: found ${pipeCount} NABC segment(s) but 'nabc-lines: ${expectedNabcLines};' declares ${expectedNabcLines}. The number of pipe-separated NABC sections must match the nabc-lines header.`,
+            range: noteGroup.range,
+            severity: 'error'
+          });
+        }
+      }
     }
   }
 

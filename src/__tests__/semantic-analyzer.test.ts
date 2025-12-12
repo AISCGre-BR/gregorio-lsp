@@ -165,6 +165,83 @@ nabc-lines: 1;
     });
   });
 
+  describe('NABC Alternation Validation', () => {
+    it('should error when NABC count does not match nabc-lines header (too many)', () => {
+      const gabc = `name: Test;
+nabc-lines: 1;
+%%
+(c4) Al(f|vi|ca)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const alternationError = diagnostics.find(d => d.code === 'nabc-alternation-mismatch');
+      expect(alternationError).toBeDefined();
+      expect(alternationError?.severity).toBe('error');
+      expect(alternationError?.message).toContain('nabc-lines: 1');
+      expect(alternationError?.message).toContain('found 2');
+    });
+
+    it('should error when NABC count does not match nabc-lines header (too few)', () => {
+      const gabc = `name: Test;
+nabc-lines: 2;
+%%
+(c4) Al(f|vi)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const alternationError = diagnostics.find(d => d.code === 'nabc-alternation-mismatch');
+      expect(alternationError).toBeDefined();
+      expect(alternationError?.severity).toBe('error');
+      expect(alternationError?.message).toContain('nabc-lines: 2');
+      expect(alternationError?.message).toContain('found 1');
+    });
+
+    it('should not error when NABC count matches nabc-lines header', () => {
+      const gabc = `name: Test;
+nabc-lines: 1;
+%%
+(c4) Al(f|vi)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const alternationError = diagnostics.find(d => d.code === 'nabc-alternation-mismatch');
+      expect(alternationError).toBeUndefined();
+    });
+
+    it('should not error when NABC count matches nabc-lines: 2', () => {
+      const gabc = `name: Test;
+nabc-lines: 2;
+%%
+(c4) Al(f|vi|ca)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const alternationError = diagnostics.find(d => d.code === 'nabc-alternation-mismatch');
+      expect(alternationError).toBeUndefined();
+    });
+
+    it('should not validate when no nabc-lines header is present', () => {
+      const gabc = `name: Test;
+%%
+(c4) Al(f)ia.(f)`;
+
+      const parser = new GabcParser(gabc);
+      const document = parser.parse();
+      const diagnostics = analyzer.analyze(document);
+
+      const alternationError = diagnostics.find(d => d.code === 'nabc-alternation-mismatch');
+      expect(alternationError).toBeUndefined();
+    });
+  });
+
   describe('Musical Construction Validation', () => {
     it('should warn on quilisma followed by equal pitch', () => {
       const gabc = `name: Test;
