@@ -11,7 +11,11 @@ import {
   TextDocumentSyncKind,
   InitializeResult,
   DiagnosticSeverity,
-  Diagnostic
+  Diagnostic,
+  DidChangeConfigurationNotification,
+  DocumentSymbol,
+  SymbolKind,
+  Range as LspRange
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -32,6 +36,21 @@ const validator = new DocumentValidator();
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
+
+// Linting configuration
+interface LintingConfig {
+  enabled: boolean;
+  severity: 'error' | 'warning' | 'info';
+  onSave: boolean;
+  ignoreRules: string[];
+}
+
+let lintingConfig: LintingConfig = {
+  enabled: true,
+  severity: 'warning',
+  onSave: false,
+  ignoreRules: []
+};
 
 connection.onInitialize((params: InitializeParams) => {
   const capabilities = params.capabilities;
@@ -73,15 +92,43 @@ connection.onInitialized(() => {
   connection.console.log(
     `Gregorio LSP Server initialized. Using ${useTreeSitter ? 'tree-sitter' : 'fallback'} parser.`
   );
+  
+  if (hasConfigurationCapability) {
+    connection.client.register(
+      DidChangeConfigurationNotification.type,
+      undefined
+    );
+  }
+});
+
+// Configuration change handler
+connection.onDidChangeConfiguration(change => {
+  if (change.settings && change.settings.linting) {
+    lintingConfig = { ...lintingConfig, ...change.settings.linting };
+    connection.console.log(`Linting config updated: ${JSON.stringify(lintingConfig)}`);
+    
+    // Re-validate all open documents
+    documents.all().forEach(validateTextDocument);
+  }
 });
 
 // Document change handlers
 documents.onDidOpen(e => {
-  validateTextDocument(e.document);
+  if (lintingConfig.enabled && !lintingConfig.onSave) {
+    validateTextDocument(e.document);
+  }
 });
 
 documents.onDidChangeContent(change => {
-  validateTextDocument(change.document);
+  if (lintingConfig.enabled && !lintingConfig.onSave) {
+    validateTextDocument(change.document);
+  }
+});
+
+documents.onDidSave(e => {
+  if (lintingConfig.enabled && lintingConfig.onSave) {
+    validateTextDocument(e.document);
+  }
 });
 
 documents.onDidClose(e => {
@@ -89,6 +136,12 @@ documents.onDidClose(e => {
 });
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
+  // If linting is disabled, clear diagnostics and return
+  if (!lintingConfig.enabled) {
+    connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+    return;
+  }
+
   const text = textDocument.getText();
   let parsedDoc;
 
@@ -127,11 +180,30 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
   // Combine all errors
   const allErrors = [...errors, ...semanticErrors];
 
+  // Filter diagnostics based on configuration
+  const filteredErrors = filterDiagnostics(allErrors);
+
   // Convert to LSP diagnostics
-  const diagnostics: Diagnostic[] = allErrors.map(error => convertToDiagnostic(error));
+  const diagnostics: Diagnostic[] = filteredErrors.map(error => convertToDiagnostic(error));
 
   // Send diagnostics to client
   connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+}
+
+function filterDiagnostics(errors: ParseError[]): ParseError[] {
+  return errors.filter(error => {
+    // Filter by ignored rules
+    if (error.code && lintingConfig.ignoreRules.includes(error.code)) {
+      return false;
+    }
+    
+    // Filter by severity level
+    const severityOrder = { error: 0, warning: 1, info: 2 };
+    const errorLevel = severityOrder[error.severity] ?? 2;
+    const configLevel = severityOrder[lintingConfig.severity] ?? 1;
+    
+    return errorLevel <= configLevel;
+  });
 }
 
 function convertToDiagnostic(error: ParseError): Diagnostic {
@@ -147,7 +219,8 @@ function convertToDiagnostic(error: ParseError): Diagnostic {
       end: { line: error.range.end.line, character: error.range.end.character }
     },
     message: error.message,
-    source: 'gregorio-lsp'
+    source: 'gregorio-lsp',
+    code: error.code
   };
 }
 
@@ -182,7 +255,7 @@ connection.onHover(params => {
 });
 
 // Completion provider
-connection.onCompletion(params => {
+connection.onCompletion(_params => {
   // Basic completion items for GABC notation
   return [
     {
@@ -223,16 +296,21 @@ connection.onDocumentSymbol(params => {
   const parser = new GabcParser(text);
   const parsed = parser.parse();
 
-  const symbols: any[] = [];
+  const symbols: DocumentSymbol[] = [];
 
   // Add header symbols
   parsed.headers.forEach((value, name) => {
-    symbols.push({
-      name: `${name}: ${value.substring(0, 30)}${value.length > 30 ? '...' : ''}`,
-      kind: 13, // String
-      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-      selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
-    });
+    const range: LspRange = {
+      start: { line: 0, character: 0 },
+      end: { line: 0, character: 0 }
+    };
+    symbols.push(DocumentSymbol.create(
+      `${name}: ${value.substring(0, 30)}${value.length > 30 ? '...' : ''}`,
+      undefined,
+      SymbolKind.String,
+      range,
+      range
+    ));
   });
 
   return symbols;
