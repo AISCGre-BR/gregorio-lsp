@@ -29,6 +29,7 @@ export interface ParseError {
   message: string;
   range: Range;
   severity: 'error' | 'warning' | 'info';
+  code?: string;
 }
 
 export interface NotationSection {
