@@ -401,6 +401,11 @@ export class GabcParser {
             modifiers.push({ type: ModifierType.OriscusScapus });
             noteLength++;
             i++;
+            // Check for orientation (0=downwards, 1=upwards)
+            if (i < gabc.length && /[01]/.test(gabc[i])) {
+              noteLength++;
+              i++;
+            }
           } else if (mod === 'w') {
             shape = NoteShape.Quilisma;
             noteLength++;
@@ -718,6 +723,11 @@ export class GabcParser {
             shape = NoteShape.Oriscus;
             noteLength++;
             i++;
+            // Check for orientation (0=downwards, 1=upwards)
+            if (i < gabc.length && /[01]/.test(gabc[i])) {
+              noteLength++;
+              i++;
+            }
           } else if (mod === 'w') {
             shape = NoteShape.Quilisma;
             noteLength++;
