@@ -1,6 +1,8 @@
 /**
  * Tree-sitter Integration Module
  * Integrates tree-sitter-gregorio parser with the LSP
+ * 
+ * Can be disabled via environment variable: DISABLE_TREE_SITTER=true
  */
 
 import Parser from 'tree-sitter';
@@ -8,19 +10,27 @@ import { ParsedDocument, ParseError, Position, Range } from '../parser/types';
 
 let Gregorio: any;
 
-try {
-  // Try to load tree-sitter-gregorio
-  Gregorio = require('tree-sitter-gregorio');
-} catch (error) {
-  console.warn('tree-sitter-gregorio not available, will use fallback parser');
+// Check if tree-sitter should be disabled
+const TREE_SITTER_DISABLED = process.env.DISABLE_TREE_SITTER === 'true';
+
+if (!TREE_SITTER_DISABLED) {
+  try {
+    // Try to load tree-sitter-gregorio
+    Gregorio = require('tree-sitter-gregorio');
+  } catch (error) {
+    console.warn('tree-sitter-gregorio not available, will use fallback parser');
+  }
 }
 
 export class TreeSitterParser {
   private parser: Parser | null = null;
   private isAvailable: boolean = false;
+  private forceDisabled: boolean = false;
 
-  constructor() {
-    if (Gregorio) {
+  constructor(options?: { disabled?: boolean }) {
+    this.forceDisabled = options?.disabled || TREE_SITTER_DISABLED;
+    
+    if (!this.forceDisabled && Gregorio) {
       try {
         this.parser = new Parser();
         this.parser.setLanguage(Gregorio);
@@ -33,11 +43,11 @@ export class TreeSitterParser {
   }
 
   isTreeSitterAvailable(): boolean {
-    return this.isAvailable;
+    return !this.forceDisabled && this.isAvailable;
   }
 
   parse(text: string): Parser.Tree | null {
-    if (!this.parser) {
+    if (!this.parser || this.forceDisabled) {
       return null;
     }
 
@@ -176,4 +186,6 @@ export class TreeSitterParser {
   }
 }
 
+// Export singleton instance
+// Can be overridden by creating a new instance with { disabled: true }
 export const treeSitterParser = new TreeSitterParser();
