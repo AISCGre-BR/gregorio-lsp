@@ -214,7 +214,12 @@ function parseComplexGlyphDescriptor(
     if (pos + 1 < nabc.length && nabc[pos] === 'l') {
       const nextChar = nabc[pos + 1];
       if (nextChar === 's' || nextChar === 't') {
-        const parsed = parseSignificantLetter(nabc.substring(pos), position);
+        // Calculate the correct position for the significant letter
+        const letterPos = position ? {
+          line: position.line,
+          character: position.character + pos
+        } : undefined;
+        const parsed = parseSignificantLetter(nabc.substring(pos), letterPos);
         if (parsed) {
           significantLetters.push(parsed.letter);
           // Move position forward by the total length consumed
