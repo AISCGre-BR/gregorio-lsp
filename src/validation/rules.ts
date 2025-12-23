@@ -3,7 +3,7 @@
  * Implements error and warning detection based on Gregorio compiler documentation
  */
 
-import { ParsedDocument, ParseError, NoteShape } from '../parser/types';
+import { ParsedDocument, ParseError, NoteShape, NABCGlyphDescriptor } from '../parser/types';
 
 export interface ValidationRule {
   name: string;
@@ -327,36 +327,34 @@ export const validateBalancedPitchDescriptorsInFusedGlyphs: ValidationRule = {
   validate: (doc: ParsedDocument): ParseError[] => {
     const errors: ParseError[] = [];
 
-    // Iterate through all syllables
     for (const syllable of doc.notation.syllables) {
-      // Check each note for NABC content
-      for (const note of syllable.notes) {
-        if (!note.nabc || note.nabc.length === 0) continue;
+      for (const noteGroup of syllable.notes) {
+        // Prefer parsed glyph descriptors to understand fusion structure
+        if (!noteGroup.nabcParsed || noteGroup.nabcParsed.length === 0) {
+          continue;
+        }
 
-        // Parse NABC notation to find fused glyphs (containing !)
-        for (const nabcLine of note.nabc) {
-          if (!nabcLine.includes('!')) continue;
+        for (const glyph of noteGroup.nabcParsed) {
+          const chain = collectFusionChain(glyph);
+          if (chain.length < 2) {
+            continue; // Not a fused glyph
+          }
 
-          // Split by ! to get individual glyph descriptors
-          const parts = nabcLine.split('!');
-          
-          for (let i = 0; i < parts.length - 1; i++) {
-            const leftPart = parts[i];
-            const rightPart = parts[i + 1];
+          const pitchFlags = chain.map(g => Boolean(g.pitch));
+          const allFalse = pitchFlags.every(p => !p);
+          const allTrue = pitchFlags.every(p => p);
+          const onlyLast = pitchFlags.slice(0, -1).every(p => !p) && pitchFlags[pitchFlags.length - 1];
 
-            // Check if parts have pitch descriptors (h followed by pitch letter a-n, p)
-            const leftHasPitch = /h[a-np]/.test(leftPart);
-            const rightHasPitch = /h[a-np]/.test(rightPart);
+          // Allow: no pitch on any glyph; pitch on all glyphs; pitch only on last glyph.
+          const balanced = allFalse || allTrue || onlyLast;
 
-            // If only one side has a pitch descriptor, emit warning
-            if (leftHasPitch !== rightHasPitch) {
-              errors.push({
-                message: `Unbalanced pitch descriptors in fused glyphs are not supported in Gregorio 6.1.0. Both glyphs must have pitch descriptors (e.g., 'vihk!tahk') or neither should have them.`,
-                range: note.range || { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                severity: 'warning'
-              });
-              break; // Only report once per NABC line
-            }
+          if (!balanced) {
+            errors.push({
+              message: `Unbalanced pitch descriptors in fused glyphs are not supported in Gregorio 6.1.0. Both glyphs must have pitch descriptors (e.g., 'vihk!tahk') or neither should have them.`,
+              range: glyph.range || noteGroup.range || { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+              severity: 'warning'
+            });
+            break;
           }
         }
       }
@@ -365,6 +363,16 @@ export const validateBalancedPitchDescriptorsInFusedGlyphs: ValidationRule = {
     return errors;
   }
 };
+
+function collectFusionChain(glyph: NABCGlyphDescriptor): NABCGlyphDescriptor[] {
+  const chain: NABCGlyphDescriptor[] = [];
+  let current: NABCGlyphDescriptor | undefined = glyph;
+  while (current) {
+    chain.push(current);
+    current = current.fusion;
+  }
+  return chain;
+}
 
 /**
  * Validate that modifiers in fused NABC glyphs only appear on the last glyph

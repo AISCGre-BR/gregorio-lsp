@@ -222,6 +222,23 @@ Contributions are welcome! Please:
 3. Make your changes with tests
 4. Submit a pull request
 
+## Known Issues
+
+### Pitch Descriptor Validation in NABC
+
+The validation rule for balanced pitch descriptors in fused NABC glyphs (`validateBalancedPitchDescriptorsInFusedGlyphs`) may produce false positive warnings when a NABC snippet contains two or more complex neume descriptors. This occurs because the parser currently validates each individual complex descriptor separately, but does not account for the scope boundaries between adjacent complex descriptors in the same NABC snippet.
+
+**Example that triggers false positive:**
+```gabc
+(g|vihk pe) % Two separate complex descriptors: 'vihk' and 'pe'
+```
+
+The warning states that pitch descriptors must be balanced in fused glyphs, but this applies only when the `!` fusion operator is used *within* a single complex descriptor (e.g., `vihk!tahk`). Adjacent complex descriptors without `!` should not trigger this validation.
+
+**Workaround:** This is a cosmetic issue that does not affect the correctness of your GABC notation. The warning can be safely ignored in cases where your NABC snippet contains multiple space-separated complex descriptors without fusion operators.
+
+**Status:** This limitation is scheduled for resolution in a future update that will improve the validation rule's scope detection.
+
 ## License
 
 MIT License - see LICENSE file for details

@@ -199,7 +199,7 @@ describe('Validation Rules', () => {
       expect(errors[0].message).toContain('Gregorio 6.1.0');
     });
 
-    it('should warn when right glyph has pitch descriptor but left does not', () => {
+    it('should allow pitch descriptor on last glyph only', () => {
       const doc: ParsedDocument = {
         headers: new Map(),
         notation: {
@@ -224,8 +224,8 @@ describe('Validation Rules', () => {
       };
 
       const errors = validateBalancedPitchDescriptorsInFusedGlyphs.validate(doc);
-      expect(errors.length).toBe(1);
-      expect(errors[0].severity).toBe('warning');
+      // Gregorio allows pitch only on the last glyph in a fusion
+      expect(errors.length).toBe(0);
     });
 
     it('should not warn when both glyphs have pitch descriptors', () => {
