@@ -4,7 +4,8 @@
  */
 
 import { 
-  parseNABCSnippet, 
+  parseNABCSnippet,
+  parseNABCDescriptors,
   parseNABCSnippets, 
   validateNABCDescriptor,
   isValidNABCGlyph,
@@ -425,6 +426,25 @@ describe('NABC Parser', () => {
       expect(result?.modifiers).toContain(NABCGlyphModifier.MelodicModification);
       expect(result?.pitch).toBe('a');
       expect(result?.significantLetters?.length).toBe(2);
+    });
+
+    it('should correctly set ranges for significant letters in vilsabc1', () => {
+      const startPos = { line: 0, character: 0 };
+      const result = parseNABCDescriptors('vilsabc1', startPos);
+      expect(result).toHaveLength(1);
+      
+      const glyph = result[0];
+      expect(glyph.basicGlyph).toBe(NABCBasicGlyph.Virga);
+      expect(glyph.range?.start.character).toBe(0);
+      expect(glyph.range?.end.character).toBe(8); // 'vilsabc1' has 8 chars
+      
+      expect(glyph.significantLetters).toHaveLength(1);
+      const letter = glyph.significantLetters![0];
+      expect(letter.type).toBe('ls');
+      expect(letter.code).toBe('abc');
+      expect(letter.position).toBe(1);
+      expect(letter.range?.start.character).toBe(2); // 'ls' starts at position 2 (after 'vi')
+      expect(letter.range?.end.character).toBe(8); // 'lsabc1' ends at position 8
     });
   });
 });

@@ -27,6 +27,7 @@ export class GabcParser {
   private character: number;
   private errors: ParseError[];
   private comments: Comment[];
+  private nabcLines?: number;
 
   constructor(text: string) {
     this.text = text;
@@ -35,10 +36,13 @@ export class GabcParser {
     this.character = 0;
     this.errors = [];
     this.comments = [];
+    this.nabcLines = undefined;
   }
 
   parse(): ParsedDocument {
     const headers = this.parseHeaders();
+    const nabcLinesHeader = headers.get('nabc-lines');
+    this.nabcLines = nabcLinesHeader ? parseInt(nabcLinesHeader, 10) : undefined;
     this.skipWhitespaceAndComments(); // Skip whitespace after header separator
     const notation = this.parseNotation();
 
@@ -195,7 +199,12 @@ export class GabcParser {
     while (this.pos < this.text.length && this.peek() !== ')') {
       if (this.peek() === '|') {
         this.advance(1); // Skip '|'
-        isNabc = !isNabc; // Toggle between GABC and NABC
+        // With nabc-lines header, everything after the first pipe is NABC
+        if (this.nabcLines !== undefined) {
+          isNabc = true;
+        } else {
+          isNabc = !isNabc; // Toggle between GABC and NABC
+        }
         continue;
       }
       
@@ -721,6 +730,7 @@ export class GabcParser {
             }
           } else if (mod === 'O') {
             shape = NoteShape.Oriscus;
+            modifiers.push({ type: ModifierType.OriscusScapus });
             noteLength++;
             i++;
             // Check for orientation (0=downwards, 1=upwards)
