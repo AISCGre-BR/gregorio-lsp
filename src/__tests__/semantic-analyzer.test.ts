@@ -103,7 +103,7 @@ nabc-lines: 1;
       expect(pipeError).toBeUndefined();
     });
 
-    it('should error on conflicting liquescence modifiers', () => {
+    it('should warn on conflicting liquescence modifiers', () => {
       const gabc = `name: Test;
 nabc-lines: 1;
 %%
@@ -115,10 +115,10 @@ nabc-lines: 1;
 
       const liquescenceError = diagnostics.find(d => d.code === 'nabc-conflicting-liquescence');
       expect(liquescenceError).toBeDefined();
-      expect(liquescenceError?.severity).toBe('error');
+      expect(liquescenceError?.severity).toBe('warning');
     });
 
-    it('should error on invalid NABC pitch', () => {
+    it('should warn on invalid NABC pitch', () => {
       // This test directly constructs an invalid NABC descriptor
       const document: ParsedDocument = {
         headers: new Map([['name', 'Test'], ['nabc-lines', '1']]),
@@ -160,7 +160,7 @@ nabc-lines: 1;
       const pitchError = diagnostics.find(d => d.code === 'nabc-invalid-pitch');
       
       expect(pitchError).toBeDefined();
-      expect(pitchError?.severity).toBe('error');
+      expect(pitchError?.severity).toBe('warning');
       expect(pitchError?.message).toContain('z');
     });
   });

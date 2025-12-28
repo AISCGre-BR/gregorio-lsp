@@ -199,11 +199,12 @@ export class GabcParser {
     while (this.pos < this.text.length && this.peek() !== ')') {
       if (this.peek() === '|') {
         this.advance(1); // Skip '|'
-        // With nabc-lines header, everything after the first pipe is NABC
+        // With nabc-lines header, everything after the first pipe is NABC.
+        // Otherwise, pipes alternate between GABC and NABC segments.
         if (this.nabcLines !== undefined) {
           isNabc = true;
         } else {
-          isNabc = !isNabc; // Toggle between GABC and NABC
+          isNabc = !isNabc;
         }
         continue;
       }

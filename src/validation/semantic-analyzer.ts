@@ -343,24 +343,24 @@ export class SemanticAnalyzer {
 
         if (hasAugmentive && hasDiminutive) {
           if (descriptor.range) {
-            this.errors.push({
+            this.warnings.push({
               code: 'nabc-conflicting-liquescence',
               message: 'NABC descriptor cannot have both augmentive (>) and diminutive (~) liquescence',
               range: descriptor.range,
-              severity: 'error'
+              severity: 'warning'
             });
           }
         }
       }
 
       // Validate pitch descriptor format
-      if (descriptor.pitch && !/[a-n]/.test(descriptor.pitch)) {
+      if (descriptor.pitch && !/^[a-np]$/.test(descriptor.pitch)) {
         if (descriptor.range) {
-          this.errors.push({
+          this.warnings.push({
             code: 'nabc-invalid-pitch',
-            message: `Invalid NABC pitch descriptor: ${descriptor.pitch}. Must be a-n.`,
+            message: `Invalid NABC pitch descriptor: ${descriptor.pitch}. Must be a-n or p.`,
             range: descriptor.range,
-            severity: 'error'
+            severity: 'warning'
           });
         }
       }
@@ -388,7 +388,7 @@ export class SemanticAnalyzer {
           if (!hasFusion && i > 0) {
             this.info.push({
               code: 'quilisma-missing-connector',
-              message: `Consider adding connector '!' before quilisma in multi-note neume for proper fusion. Example: ${this.formatNoteSequence(notes, i)}`,
+              message: `Consider adding the fusion operator '@' (preferred) to fuse the note before the quilisma. Alternative: use the spacing connector '!'. Examples: ${this.formatNoteSequence(notes, i)}`,
               range: note.range,
               severity: 'info'
             });
@@ -433,8 +433,8 @@ export class SemanticAnalyzer {
     const before = quilismaIndex > 0 ? notes[quilismaIndex - 1].pitch : '';
     const quilisma = notes[quilismaIndex].pitch + 'w';
     const after = quilismaIndex + 1 < notes.length ? notes[quilismaIndex + 1].pitch : '';
-    
-    return `(${before}!${quilisma}${after})`;
+
+    return `(${before}@${quilisma}${after}) or (${before}!${quilisma}${after})`;
   }
 
   private getNextPitchExample(pitch: string): string {

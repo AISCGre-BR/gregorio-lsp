@@ -90,7 +90,6 @@ nabc-lines: 1;
 
     it('should correctly parse alternating GABC and NABC segments', () => {
       const text = `name: Test;
-nabc-lines: 1;
 %%
 (c4) Test(e|ta|f|vi)`;
 
@@ -125,7 +124,6 @@ nabc-lines: 1;
 
     it('should handle multiple alternations correctly', () => {
       const text = `name: Test;
-nabc-lines: 1;
 %%
 (c4) Test(gh|pe|f|ta|e|vi)`;
 
