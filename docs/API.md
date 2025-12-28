@@ -209,11 +209,6 @@ interface ValidationRule {
 - **Severity**: warning
 - **Description**: Warns when virga strata is followed by equal or higher pitch
 
-##### `validateQuilismaticConnector`
-- **Name**: `quilismatic-connector`
-- **Severity**: info
-- **Description**: Suggests adding connector in quilismatic sequences
-
 ##### `validateStaffLines`
 - **Name**: `staff-lines`
 - **Severity**: error

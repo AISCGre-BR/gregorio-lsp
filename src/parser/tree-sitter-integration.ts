@@ -5,15 +5,22 @@
  * Can be disabled via environment variable: DISABLE_TREE_SITTER=true
  */
 
-import Parser from 'tree-sitter';
 import { ParsedDocument, ParseError, Position, Range } from '../parser/types';
 
+let ParserModule: any;
 let Gregorio: any;
 
 // Check if tree-sitter should be disabled
 const TREE_SITTER_DISABLED = process.env.DISABLE_TREE_SITTER === 'true';
 
 if (!TREE_SITTER_DISABLED) {
+  try {
+    // Try to load tree-sitter (native module)
+    ParserModule = require('tree-sitter');
+  } catch (error) {
+    console.warn('tree-sitter not available, will use fallback parser');
+  }
+
   try {
     // Try to load tree-sitter-gregorio
     Gregorio = require('tree-sitter-gregorio');
@@ -23,16 +30,16 @@ if (!TREE_SITTER_DISABLED) {
 }
 
 export class TreeSitterParser {
-  private parser: Parser | null = null;
+  private parser: any | null = null;
   private isAvailable: boolean = false;
   private forceDisabled: boolean = false;
 
   constructor(options?: { disabled?: boolean }) {
     this.forceDisabled = options?.disabled || TREE_SITTER_DISABLED;
     
-    if (!this.forceDisabled && Gregorio) {
+    if (!this.forceDisabled && ParserModule && Gregorio) {
       try {
-        this.parser = new Parser();
+        this.parser = new ParserModule();
         this.parser.setLanguage(Gregorio);
         this.isAvailable = true;
       } catch (error) {
@@ -46,7 +53,7 @@ export class TreeSitterParser {
     return !this.forceDisabled && this.isAvailable;
   }
 
-  parse(text: string): Parser.Tree | null {
+  parse(text: string): any | null {
     if (!this.parser || this.forceDisabled) {
       return null;
     }
@@ -59,10 +66,10 @@ export class TreeSitterParser {
     }
   }
 
-  extractErrors(tree: Parser.Tree): ParseError[] {
+  extractErrors(tree: any): ParseError[] {
     const errors: ParseError[] = [];
 
-    const visitNode = (node: Parser.SyntaxNode) => {
+    const visitNode = (node: any) => {
       if (node.hasError) {
         if (node.type === 'ERROR' || node.isMissing) {
           errors.push({
@@ -82,16 +89,16 @@ export class TreeSitterParser {
     return errors;
   }
 
-  findNodeAt(tree: Parser.Tree, position: Position): Parser.SyntaxNode | null {
+  findNodeAt(tree: any, position: Position): any | null {
     const point = { row: position.line, column: position.character };
     return tree.rootNode.descendantForPosition(point);
   }
 
-  getNodeText(node: Parser.SyntaxNode, text: string): string {
+  getNodeText(node: any, text: string): string {
     return text.substring(node.startIndex, node.endIndex);
   }
 
-  nodeToRange(node: Parser.SyntaxNode): Range {
+  nodeToRange(node: any): Range {
     return {
       start: {
         line: node.startPosition.row,
@@ -107,10 +114,10 @@ export class TreeSitterParser {
   /**
    * Extract headers from tree-sitter parse tree
    */
-  extractHeaders(tree: Parser.Tree, text: string): Map<string, string> {
+  extractHeaders(tree: any, text: string): Map<string, string> {
     const headers = new Map<string, string>();
     
-    const findHeaders = (node: Parser.SyntaxNode) => {
+    const findHeaders = (node: any) => {
       if (node.type === 'header' || node.type === 'header_line') {
         const nameNode = node.childForFieldName('name');
         const valueNode = node.childForFieldName('value');
@@ -134,10 +141,10 @@ export class TreeSitterParser {
   /**
    * Extract notation syllables from tree-sitter parse tree
    */
-  extractNotation(tree: Parser.Tree, text: string): any[] {
+  extractNotation(tree: any, text: string): any[] {
     const syllables: any[] = [];
 
-    const findSyllables = (node: Parser.SyntaxNode) => {
+    const findSyllables = (node: any) => {
       if (node.type === 'syllable' || node.type === 'word') {
         const textNode = node.childForFieldName('text');
         const notesNode = node.childForFieldName('notes');
@@ -161,17 +168,17 @@ export class TreeSitterParser {
   /**
    * Check if a node represents a NABC section
    */
-  isNabcNode(node: Parser.SyntaxNode): boolean {
+  isNabcNode(node: any): boolean {
     return node.type === 'nabc_snippet' || node.type === 'nabc_content';
   }
 
   /**
    * Extract NABC snippets from a notes section
    */
-  extractNabcSnippets(node: Parser.SyntaxNode, text: string): string[] {
+  extractNabcSnippets(node: any, text: string): string[] {
     const snippets: string[] = [];
 
-    const findNabc = (n: Parser.SyntaxNode) => {
+    const findNabc = (n: any) => {
       if (this.isNabcNode(n)) {
         snippets.push(this.getNodeText(n, text));
       }

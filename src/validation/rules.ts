@@ -4,6 +4,7 @@
  */
 
 import { ParsedDocument, ParseError, NoteShape, NABCGlyphDescriptor } from '../parser/types';
+import { parseNABCSnippets } from '../parser/nabc-parser';
 
 export interface ValidationRule {
   name: string;
@@ -244,41 +245,6 @@ export const validateVirgaStrataFollowedByHigherPitch: ValidationRule = {
 };
 
 /**
- * Check for missing connector in quilismatic sequences
- */
-export const validateQuilismaticConnector: ValidationRule = {
-  name: 'quilismatic-connector',
-  severity: 'info',
-  validate: (doc: ParsedDocument): ParseError[] => {
-    const errors: ParseError[] = [];
-
-    for (const syllable of doc.notation.syllables) {
-      for (const noteGroup of syllable.notes) {
-        if (noteGroup.notes.length >= 3) {
-          // Check for quilisma in the sequence
-          const hasQuilisma = noteGroup.notes.some(n => n.shape === NoteShape.Quilisma);
-          
-          if (hasQuilisma) {
-            // Check if connector '!' is present in the GABC string
-            const hasFusion = noteGroup.gabc.includes('!');
-            
-            if (!hasFusion) {
-              errors.push({
-                message: 'Consider adding connector "!" in quilismatic sequences of 3+ notes',
-                range: noteGroup.range,
-                severity: 'info'
-              });
-            }
-          }
-        }
-      }
-    }
-
-    return errors;
-  }
-};
-
-/**
  * Check for invalid staff lines
  */
 export const validateStaffLines: ValidationRule = {
@@ -329,12 +295,20 @@ export const validateBalancedPitchDescriptorsInFusedGlyphs: ValidationRule = {
 
     for (const syllable of doc.notation.syllables) {
       for (const noteGroup of syllable.notes) {
-        // Prefer parsed glyph descriptors to understand fusion structure
-        if (!noteGroup.nabcParsed || noteGroup.nabcParsed.length === 0) {
+        // Prefer parsed glyph descriptors to understand fusion structure.
+        // Fall back to parsing raw NABC lines for robustness (tests and
+        // constructed documents may only populate `nabc`).
+        const nabcParsed = (noteGroup.nabcParsed && noteGroup.nabcParsed.length > 0)
+          ? noteGroup.nabcParsed
+          : (noteGroup.nabc && noteGroup.nabc.length > 0)
+            ? parseNABCSnippets(noteGroup.nabc, noteGroup.range?.start ?? { line: 0, character: 0 })
+            : undefined;
+
+        if (!nabcParsed || nabcParsed.length === 0) {
           continue;
         }
 
-        for (const glyph of noteGroup.nabcParsed) {
+        for (const glyph of nabcParsed) {
           const chain = collectFusionChain(glyph);
           if (chain.length < 2) {
             continue; // Not a fused glyph
@@ -430,7 +404,6 @@ export const allValidationRules: ValidationRule[] = [
   validateQuilismaFollowedByLowerPitch,
   validateQuilismaPesPrecededByHigherPitch,
   validateVirgaStrataFollowedByHigherPitch,
-  validateQuilismaticConnector,
   validateStaffLines,
   validateBalancedPitchDescriptorsInFusedGlyphs,
   validateModifiersInFusedGlyphs

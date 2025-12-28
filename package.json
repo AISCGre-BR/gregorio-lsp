@@ -6,6 +6,10 @@
   "bin": {
     "gregorio-lsp": "dist/server.js"
   },
+  "exports": {
+    ".": "./dist/server.js",
+    "./lint": "./dist/lint.js"
+  },
   "scripts": {
     "build": "tsc -b",
     "watch": "tsc -b --watch",
@@ -28,8 +32,11 @@
     "node": ">=16.0.0"
   },
   "dependencies": {
+    "gregolint": "file:../gregolint",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "optionalDependencies": {
     "tree-sitter": "^0.21.0",
     "tree-sitter-gregorio": "file:../tree-sitter-gregorio"
   },

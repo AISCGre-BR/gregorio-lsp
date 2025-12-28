@@ -144,7 +144,6 @@ The LSP can be configured through workspace settings (if supported by the client
 - `quilisma-lower-pitch`: Warn about quilisma followed by lower pitch
 - `quilisma-pes-higher-pitch`: Warn about quilisma-pes preceded by higher pitch
 - `virga-strata-higher-pitch`: Warn about virga strata followed by higher pitch
-- `quilismatic-connector`: Info about missing connectors
 - `staff-lines`: Error on invalid staff line count
 
 ## Architecture
