@@ -1,0 +1,78 @@
+//! Lint pipeline: parse + run all rules + run semantic analyzer.
+
+use crate::parser::types::{ParseError, Severity};
+use crate::parser::GabcParser;
+use crate::validation::{analyze_semantics, DocumentValidator};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LintSeverity {
+    Error,
+    Warning,
+    Info,
+}
+
+impl LintSeverity {
+    fn level(self) -> u8 {
+        match self {
+            LintSeverity::Error => 0,
+            LintSeverity::Warning => 1,
+            LintSeverity::Info => 2,
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "error" => LintSeverity::Error,
+            "warning" => LintSeverity::Warning,
+            "info" => LintSeverity::Info,
+            _ => return None,
+        })
+    }
+}
+
+impl Default for LintSeverity {
+    fn default() -> Self {
+        LintSeverity::Info
+    }
+}
+
+fn severity_level(s: Severity) -> u8 {
+    match s {
+        Severity::Error => 0,
+        Severity::Warning => 1,
+        Severity::Info => 2,
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LintOptions {
+    pub min_severity: Option<LintSeverity>,
+    pub ignore_codes: Vec<String>,
+}
+
+pub fn lint_gabc_text(text: &str, options: &LintOptions) -> Vec<ParseError> {
+    let parser = GabcParser::new(text);
+    let doc = parser.parse();
+
+    let validator = DocumentValidator::new();
+    let mut all = validator.validate(&doc);
+    all.extend(analyze_semantics(&doc).iter().map(|s| s.to_parse_error()));
+
+    let min_level = options
+        .min_severity
+        .unwrap_or(LintSeverity::Info)
+        .level();
+    let ignore: std::collections::HashSet<&str> =
+        options.ignore_codes.iter().map(|s| s.as_str()).collect();
+
+    all.into_iter()
+        .filter(|d| {
+            if let Some(code) = &d.code {
+                if ignore.contains(code.as_str()) {
+                    return false;
+                }
+            }
+            severity_level(d.severity) <= min_level
+        })
+        .collect()
+}
