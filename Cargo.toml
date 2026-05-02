@@ -40,7 +40,7 @@ log = "0.4"
 env_logger = "0.11"
 
 # Optional tree-sitter support
-tree-sitter = { version = "0.20", optional = true }
+tree-sitter = { version = "~0.22", optional = true }
 tree-sitter-gregorio = { path = "../tree-sitter-gregorio", optional = true }
 
 [dev-dependencies]

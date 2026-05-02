@@ -10,6 +10,14 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_lsp::parser::types::Severity as PSeverity;
 use gregorio_lsp::parser::GabcParser;
+#[cfg(feature = "tree-sitter")]
+use gregorio_lsp::tree_sitter_integration::TreeSitterParser;
+#[cfg(feature = "tree-sitter")]
+use gregorio_lsp::Position as GPosition;
+#[cfg(feature = "tree-sitter")]
+use gregorio_lsp::Range as GRange;
+#[cfg(feature = "tree-sitter")]
+use tree_sitter::Tree;
 
 #[derive(Debug, Clone)]
 struct LintingConfig {
@@ -34,6 +42,10 @@ struct Backend {
     client: Client,
     documents: Mutex<std::collections::HashMap<Url, String>>,
     config: Mutex<LintingConfig>,
+    #[cfg(feature = "tree-sitter")]
+    ts_parser: Mutex<Option<TreeSitterParser>>,
+    #[cfg(feature = "tree-sitter")]
+    ts_trees: Mutex<std::collections::HashMap<Url, Tree>>,
 }
 
 impl Backend {
@@ -42,6 +54,10 @@ impl Backend {
             client,
             documents: Mutex::new(std::collections::HashMap::new()),
             config: Mutex::new(LintingConfig::default()),
+            #[cfg(feature = "tree-sitter")]
+            ts_parser: Mutex::new(TreeSitterParser::new()),
+            #[cfg(feature = "tree-sitter")]
+            ts_trees: Mutex::new(std::collections::HashMap::new()),
         }
     }
 
@@ -166,6 +182,15 @@ impl LanguageServer for Backend {
             let mut docs = self.documents.lock().unwrap();
             docs.insert(uri.clone(), text.clone());
         }
+        #[cfg(feature = "tree-sitter")]
+        {
+            let mut parser = self.ts_parser.lock().unwrap();
+            if let Some(parser) = parser.as_mut() {
+                if let Some(tree) = parser.parse(&text) {
+                    self.ts_trees.lock().unwrap().insert(uri.clone(), tree);
+                }
+            }
+        }
         let cfg = { self.config.lock().unwrap().clone() };
         if cfg.enabled && !cfg.on_save {
             self.validate(uri, &text).await;
@@ -174,16 +199,76 @@ impl LanguageServer for Backend {
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri.clone();
-        let text = {
-            let mut docs = self.documents.lock().unwrap();
-            let entry = docs.entry(uri.clone()).or_default();
-            for change in params.content_changes {
-                // Simplified update: tower-lsp surfaces full text for Full sync; for Incremental
-                // edits we still use the new chunk as best-effort full replacement.
-                *entry = change.text;
-            }
-            entry.clone()
+        let mut text = {
+            self.documents
+                .lock()
+                .unwrap()
+                .get(&uri)
+                .cloned()
+                .unwrap_or_default()
         };
+
+        #[cfg(feature = "tree-sitter")]
+        let mut tree = { self.ts_trees.lock().unwrap().remove(&uri) };
+
+        for change in params.content_changes {
+            if let Some(range) = change.range {
+                #[cfg(feature = "tree-sitter")]
+                if let Some(mut current_tree) = tree.take() {
+                    let g_range = GRange {
+                        start: GPosition {
+                            line: range.start.line as usize,
+                            character: range.start.character as usize,
+                        },
+                        end: GPosition {
+                            line: range.end.line as usize,
+                            character: range.end.character as usize,
+                        },
+                    };
+                    if let Some((new_text, edit)) = TreeSitterParser::apply_incremental_edit(
+                        &text,
+                        g_range,
+                        &change.text,
+                    ) {
+                        current_tree.edit(&edit);
+                        let mut parser = self.ts_parser.lock().unwrap();
+                        if let Some(parser) = parser.as_mut() {
+                            tree = parser.parse_with_old(&new_text, &current_tree);
+                        }
+                        text = new_text;
+                        continue;
+                    }
+                }
+
+                if let Some(updated) = apply_lsp_change(&text, range, &change.text) {
+                    text = updated;
+                } else {
+                    text = change.text;
+                }
+            } else {
+                text = change.text;
+            }
+
+            #[cfg(feature = "tree-sitter")]
+            {
+                let mut parser = self.ts_parser.lock().unwrap();
+                if let Some(parser) = parser.as_mut() {
+                    tree = parser.parse(&text);
+                }
+            }
+        }
+
+        {
+            let mut docs = self.documents.lock().unwrap();
+            docs.insert(uri.clone(), text.clone());
+        }
+
+        #[cfg(feature = "tree-sitter")]
+        {
+            if let Some(tree) = tree {
+                self.ts_trees.lock().unwrap().insert(uri.clone(), tree);
+            }
+        }
 
         let cfg = self.config.lock().unwrap().clone();
         if cfg.enabled && !cfg.on_save {
@@ -206,6 +291,10 @@ impl LanguageServer for Backend {
         {
             let mut docs = self.documents.lock().unwrap();
             docs.remove(&params.text_document.uri);
+        }
+        #[cfg(feature = "tree-sitter")]
+        {
+            self.ts_trees.lock().unwrap().remove(&params.text_document.uri);
         }
         self.client
             .publish_diagnostics(params.text_document.uri, Vec::new(), None)
@@ -302,4 +391,37 @@ async fn main() {
     let stdout = tokio::io::stdout();
     let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+fn apply_lsp_change(text: &str, range: tower_lsp::lsp_types::Range, replacement: &str) -> Option<String> {
+    let start = byte_offset(text, range.start)?;
+    let end = byte_offset(text, range.end)?;
+    let mut out = String::with_capacity(text.len() - (end - start) + replacement.len());
+    out.push_str(&text[..start]);
+    out.push_str(replacement);
+    out.push_str(&text[end..]);
+    Some(out)
+}
+
+fn byte_offset(text: &str, pos: tower_lsp::lsp_types::Position) -> Option<usize> {
+    let mut line = 0usize;
+    let mut col = 0usize;
+    for (idx, ch) in text.char_indices() {
+        if line == pos.line as usize && col == pos.character as usize {
+            return Some(idx);
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
+            if line > pos.line as usize {
+                return Some(idx + 1);
+            }
+        } else if line == pos.line as usize {
+            col += 1;
+        }
+    }
+    if line == pos.line as usize && col == pos.character as usize {
+        return Some(text.len());
+    }
+    None
 }

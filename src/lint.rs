@@ -3,6 +3,8 @@
 use crate::parser::types::{ParseError, Severity};
 use crate::parser::GabcParser;
 use crate::validation::{analyze_semantics, DocumentValidator};
+#[cfg(feature = "tree-sitter")]
+use crate::tree_sitter_integration::TreeSitterParser;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LintSeverity {
@@ -58,6 +60,16 @@ pub fn lint_gabc_text(text: &str, options: &LintOptions) -> Vec<ParseError> {
     let mut all = validator.validate(&doc);
     all.extend(analyze_semantics(&doc).iter().map(|s| s.to_parse_error()));
 
+    #[cfg(feature = "tree-sitter")]
+    {
+        if let Some(mut ts) = TreeSitterParser::new() {
+            if let Some(tree) = ts.parse(text) {
+                all.extend(ts.extract_errors(&tree, text));
+                all.extend(ts.extract_query_diagnostics(&tree, text));
+            }
+        }
+    }
+
     let min_level = options
         .min_severity
         .unwrap_or(LintSeverity::Info)
@@ -65,6 +77,7 @@ pub fn lint_gabc_text(text: &str, options: &LintOptions) -> Vec<ParseError> {
     let ignore: std::collections::HashSet<&str> =
         options.ignore_codes.iter().map(|s| s.as_str()).collect();
 
+    let mut seen = std::collections::HashSet::new();
     all.into_iter()
         .filter(|d| {
             if let Some(code) = &d.code {
@@ -73,6 +86,14 @@ pub fn lint_gabc_text(text: &str, options: &LintOptions) -> Vec<ParseError> {
                 }
             }
             severity_level(d.severity) <= min_level
+                && seen.insert((
+                    d.range.start.line,
+                    d.range.start.character,
+                    d.range.end.line,
+                    d.range.end.character,
+                    d.message.clone(),
+                    d.code.clone(),
+                ))
         })
         .collect()
 }
