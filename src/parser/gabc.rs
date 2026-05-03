@@ -188,11 +188,9 @@ impl<'a> GabcParser<'a> {
         while self.pos < self.text.len() && self.peek_char() != ')' {
             if self.peek_char() == '|' {
                 self.advance(1);
-                if self.nabc_lines.is_some() {
-                    is_nabc = true;
-                } else {
-                    is_nabc = !is_nabc;
-                }
+                // In current Gregorio syntax, a pipe starts the NABC side of the
+                // snippet list; subsequent snippets remain NABC even with extra pipes.
+                is_nabc = true;
                 continue;
             }
             let segment_start = self.current_position();
@@ -239,7 +237,7 @@ impl<'a> GabcParser<'a> {
         let bar = parse_bar_with_position(&gabc_content, note_start);
 
         let mut notes = Vec::new();
-        if !gabc_content.trim().is_empty() {
+        if !gabc_content.trim().is_empty() || !nabc_snippets.is_empty() {
             let group_end = self.current_position();
             if let Some(group) = parse_note_group(
                 &gabc_content,

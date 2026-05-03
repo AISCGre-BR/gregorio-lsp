@@ -131,3 +131,42 @@ fn parses_attribute_with_value() {
     assert_eq!(attrs[0].name, "shape");
     assert_eq!(attrs[0].value.as_deref(), Some("stroke"));
 }
+
+#[test]
+fn parses_empty_gabc_before_nabc_snippet() {
+    let text = "name: Test;\n%%\n(c4) test(|vi)";
+    let doc = parse(text);
+    let group = &doc.notation.syllables[1].notes[0];
+    assert_eq!(group.gabc, "");
+    let nabc = group.nabc.as_ref().expect("nabc should be present");
+    assert_eq!(nabc, &vec!["vi".to_string()]);
+    assert!(group.notes.is_empty());
+}
+
+#[test]
+fn parses_double_pipe_with_empty_middle_snippet() {
+    let text = "name: Test;\n%%\n(c4) test(g||ta)";
+    let doc = parse(text);
+    let group = &doc.notation.syllables[1].notes[0];
+    assert_eq!(group.gabc, "g");
+    let nabc = group.nabc.as_ref().expect("nabc should be present");
+    assert_eq!(nabc, &vec!["ta".to_string()]);
+}
+
+#[test]
+fn parses_double_pipe_with_empty_first_and_middle_snippets() {
+    let text = "name: Test;\n%%\n(c4) test(||ta)";
+    let doc = parse(text);
+    let group = &doc.notation.syllables[1].notes[0];
+    assert_eq!(group.gabc, "");
+    let nabc = group.nabc.as_ref().expect("nabc should be present");
+    assert_eq!(nabc, &vec!["ta".to_string()]);
+    assert!(group.notes.is_empty());
+}
+
+#[test]
+fn keeps_lyric_tie_in_syllable_text() {
+    let text = "name: Test;\n%%\nSan~ctus(g)";
+    let doc = parse(text);
+    assert_eq!(doc.notation.syllables[0].text, "San~ctus");
+}

@@ -903,7 +903,8 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-gregorio"
-version = "0.0.1"
+version = "1.0.0-alpha.1"
+source = "git+https://github.com/aiscgre-br/tree-sitter-gregorio?tag=v1.0.0-alpha.1#002d6b31d8860324a3a51544b245903e34cbdf80"
 dependencies = [
  "cc",
  "tree-sitter",
