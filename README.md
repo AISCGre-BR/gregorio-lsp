@@ -84,4 +84,4 @@ tests/
 
 ## Licença
 
-MIT — veja [LICENSE](LICENSE).
+MIT — Copyright (c) 2026 AISCGre Brasil. Veja [LICENSE](LICENSE).

@@ -2,7 +2,7 @@
 name = "gregorio-lsp"
 version = "0.2.0"
 edition = "2021"
-authors = ["AISC Gre-BR"]
+authors = ["AISCGre Brasil"]
 description = "Language Server Protocol implementation for Gregorio GABC/NABC notation files"
 license = "MIT"
 keywords = ["lsp", "language-server", "gabc", "nabc", "gregorio"]
@@ -41,7 +41,7 @@ env_logger = "0.11"
 
 # Optional tree-sitter support
 tree-sitter = { version = "~0.22", optional = true }
-tree-sitter-gregorio = { path = "../tree-sitter-gregorio", optional = true }
+tree-sitter-gregorio = { git = "https://github.com/aiscgre-br/tree-sitter-gregorio", tag = "v1.0.0-alpha.1", optional = true }
 
 [dev-dependencies]
 pretty_assertions = "1.4"
