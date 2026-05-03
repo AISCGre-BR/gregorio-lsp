@@ -7,13 +7,19 @@ use std::process::ExitCode;
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_lsp::parser::types::Severity;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutputFormat {
+    Text,
+    Json,
+}
+
 fn print_help() {
     eprintln!(
         "gregolint {} — Gregorio GABC/NABC linter\n\
 \n\
 USAGE:\n    gregolint [OPTIONS] [FILES...]\n\
 \n\
-OPTIONS:\n    -s, --severity <error|warning|info>  Minimum severity to report (default: info)\n    -i, --ignore <code>                   Ignore a diagnostic code (repeatable)\n    -h, --help                            Print help\n    -V, --version                         Print version\n\
+OPTIONS:\n    -s, --severity <error|warning|info>  Minimum severity to report (default: info)\n    -i, --ignore <code>                   Ignore a diagnostic code (repeatable)\n    -f, --format <text|json>              Output format (default: text)\n    -h, --help                            Print help\n    -V, --version                         Print version\n\
 \n\
 If no FILES are given, reads GABC from stdin.",
         env!("CARGO_PKG_VERSION")
@@ -25,6 +31,7 @@ fn main() -> ExitCode {
     let mut files: Vec<PathBuf> = Vec::new();
     let mut min_severity: Option<LintSeverity> = None;
     let mut ignore_codes: Vec<String> = Vec::new();
+    let mut format = OutputFormat::Text;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -56,6 +63,20 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
             },
+            "-f" | "--format" => match args.next() {
+                Some(f) => match f.as_str() {
+                    "text" => format = OutputFormat::Text,
+                    "json" => format = OutputFormat::Json,
+                    other => {
+                        eprintln!("error: invalid format '{other}' (expected 'text' or 'json')");
+                        return ExitCode::from(2);
+                    }
+                },
+                None => {
+                    eprintln!("error: --format requires a value");
+                    return ExitCode::from(2);
+                }
+            },
             other if other.starts_with('-') => {
                 eprintln!("error: unknown option '{other}'");
                 return ExitCode::from(2);
@@ -69,6 +90,15 @@ fn main() -> ExitCode {
         ignore_codes,
     };
 
+    match format {
+        OutputFormat::Text => run_text(&files, &opts),
+        OutputFormat::Json => run_json(&files, &opts),
+    }
+}
+
+// ── Text output ───────────────────────────────────────────────────────────────
+
+fn run_text(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
     let mut had_error = false;
     if files.is_empty() {
         let mut buf = String::new();
@@ -76,33 +106,28 @@ fn main() -> ExitCode {
             eprintln!("error reading stdin: {e}");
             return ExitCode::from(2);
         }
-        if report("<stdin>", &buf, &opts) {
+        if report_text("<stdin>", &buf, opts) {
             had_error = true;
         }
     } else {
-        for file in &files {
+        for file in files {
             match std::fs::read_to_string(file) {
                 Ok(text) => {
-                    if report(&file.display().to_string(), &text, &opts) {
+                    if report_text(&file.display().to_string(), &text, opts) {
                         had_error = true;
                     }
                 }
                 Err(e) => {
                     eprintln!("error reading {}: {e}", file.display());
-                    had_error = true;
+                    return ExitCode::from(2);
                 }
             }
         }
     }
-
-    if had_error {
-        ExitCode::from(1)
-    } else {
-        ExitCode::SUCCESS
-    }
+    if had_error { ExitCode::from(1) } else { ExitCode::SUCCESS }
 }
 
-fn report(label: &str, text: &str, opts: &LintOptions) -> bool {
+fn report_text(label: &str, text: &str, opts: &LintOptions) -> bool {
     let diags = lint_gabc_text(text, opts);
     let mut had_error = false;
     for d in diags {
@@ -121,4 +146,93 @@ fn report(label: &str, text: &str, opts: &LintOptions) -> bool {
         );
     }
     had_error
+}
+
+// ── JSON output ───────────────────────────────────────────────────────────────
+
+fn run_json(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
+    use serde_json::{json, Value};
+
+    let mut all_diags: Vec<Value> = Vec::new();
+    let mut skipped: Vec<Value> = Vec::new();
+    let mut had_error = false;
+    let mut error_count: u32 = 0;
+    let mut warning_count: u32 = 0;
+    let mut info_count: u32 = 0;
+    let mut file_count: u32 = 0;
+
+    let inputs: Vec<(String, Result<String, String>)> = if files.is_empty() {
+        let mut buf = String::new();
+        let result = io::stdin()
+            .read_to_string(&mut buf)
+            .map(|_| buf)
+            .map_err(|e| e.to_string());
+        vec![("<stdin>".to_string(), result)]
+    } else {
+        files
+            .iter()
+            .map(|p| {
+                (
+                    p.display().to_string(),
+                    std::fs::read_to_string(p).map_err(|e| e.to_string()),
+                )
+            })
+            .collect()
+    };
+
+    for (label, result) in inputs {
+        file_count += 1;
+        match result {
+            Err(reason) => {
+                skipped.push(json!({ "file": label, "reason": reason }));
+            }
+            Ok(text) => {
+                let diags = lint_gabc_text(&text, opts);
+                for d in diags {
+                    match d.severity {
+                        Severity::Error => {
+                            had_error = true;
+                            error_count += 1;
+                        }
+                        Severity::Warning => warning_count += 1,
+                        Severity::Info => info_count += 1,
+                    }
+                    all_diags.push(json!({
+                        "file": label,
+                        "severity": d.severity.as_str(),
+                        "code": d.code,
+                        "message": d.message,
+                        "range": {
+                            "start": {
+                                "line": d.range.start.line,
+                                "character": d.range.start.character
+                            },
+                            "end": {
+                                "line": d.range.end.line,
+                                "character": d.range.end.character
+                            }
+                        },
+                        "source": "gregolint"
+                    }));
+                }
+            }
+        }
+    }
+
+    let output = json!({
+        "tool": "gregolint",
+        "diagnostics": all_diags,
+        "skipped": skipped,
+        "summary": {
+            "files": file_count,
+            "diagnostics": all_diags.len(),
+            "errors": error_count,
+            "warnings": warning_count,
+            "info": info_count
+        }
+    });
+
+    println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+
+    if had_error { ExitCode::from(1) } else { ExitCode::SUCCESS }
 }

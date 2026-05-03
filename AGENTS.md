@@ -382,6 +382,7 @@ gregolint [OPTIONS] [FILE…]
 Options:
   -s, --severity <error|warning|info>   Minimum severity (default: info)
   -i, --ignore <code>                   Ignore rule code (repeatable)
+  -f, --format <text|json>              Output format (default: text)
   -h, --help
   -V, --version
 ```
@@ -390,11 +391,34 @@ Reads from stdin if no files are given.
 
 ### 9.2 Output Format
 
+**Text format** (default):
 ```
 filename:line:column: severity [code] message
 ```
 
 Columns are 1-based in the CLI output (convert from 0-based `Position.character + 1`).
+
+**JSON format** (`-f json`):
+```json
+{
+  "tool": "gregolint",
+  "diagnostics": [
+    {
+      "file": "path/to/file.gabc",
+      "severity": "error|warning|info",
+      "code": "rule-code",
+      "message": "...",
+      "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 0, "character": 0 } },
+      "source": "gregolint"
+    }
+  ],
+  "skipped": [],
+  "summary": { "files": 1, "diagnostics": 1, "errors": 0, "warnings": 1, "info": 0 }
+}
+```
+
+Ranges in JSON output are 0-based (LSP convention). Use text format for human-readable output
+and JSON format for machine consumption (CI pipelines, editor integrations).
 
 ### 9.3 Exit Codes
 
@@ -402,7 +426,7 @@ Columns are 1-based in the CLI output (convert from 0-based `Position.character 
 |---|---|
 | `0` | No errors (warnings/infos may be present) |
 | `1` | At least one error-severity diagnostic |
-| `2` | CLI argument parsing error |
+| `2` | CLI argument parsing error or unreadable file |
 
 Do NOT change exit code semantics — CI scripts depend on them.
 
