@@ -6,10 +6,11 @@ use crate::validation::{analyze_semantics, DocumentValidator};
 #[cfg(feature = "tree-sitter")]
 use crate::tree_sitter_integration::TreeSitterParser;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LintSeverity {
     Error,
     Warning,
+    #[default]
     Info,
 }
 
@@ -32,11 +33,6 @@ impl LintSeverity {
     }
 }
 
-impl Default for LintSeverity {
-    fn default() -> Self {
-        LintSeverity::Info
-    }
-}
 
 fn severity_level(s: Severity) -> u8 {
     match s {
