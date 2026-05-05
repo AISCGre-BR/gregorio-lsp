@@ -142,7 +142,7 @@ The `tree-sitter` Cargo feature is **opt-in** and **never enabled by default**. 
 gated on it must use `#[cfg(feature = "tree-sitter")]`. The feature adds:
 
 - `src/tree_sitter_integration.rs` — `TreeSitterParser` struct
-- Dependency on `tree-sitter = "~0.22"` and `tree-sitter-gregorio = "=1.0.0-alpha.1"`
+- Dependency on `tree-sitter = "~0.22"` and `tree-sitter-gregorio = "=0.5.2"`
 
 Do NOT introduce any `tree-sitter` imports outside `tree_sitter_integration.rs`.
 
