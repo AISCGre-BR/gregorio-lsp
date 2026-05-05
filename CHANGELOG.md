@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.0.0-alpha.1 — 2026-05-02
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0-alpha.1] - 2026-05-02
 
 ### Added
 - `AGENTS.md`: comprehensive AI code generation guide covering architecture, parsers,
@@ -23,19 +28,25 @@
 - CLI `gregolint`: unreadable file now exits with code `2` (CLI execution failure)
   instead of `1` (lint errors found), matching documented exit code semantics.
 
-## 0.2.0 — Reescrita em Rust
+## [0.2.0]
 
-- Migração completa do código TypeScript para Rust (edição 2021).
-- Servidor LSP reimplementado sobre [tower-lsp](https://github.com/ebkalderon/tower-lsp).
-- CLI `gregolint` portado para Rust com mesma interface (`-s`, `-i`, `-h`, `-V`).
-- Parsers GABC e NABC reescritos preservando comportamento e mensagens.
-- Analisador semântico e dez regras de validação portados.
-- Integração com [tree-sitter-gregorio](../tree-sitter-gregorio) tornada opcional via feature `tree-sitter`.
-- Suíte de testes nova com 58 casos de integração cobrindo parser GABC,
-  parser NABC, validação, indicadores leaning, oriscus e corpus de exemplos.
-- Removidos artefatos do toolchain Node (`package.json`, `tsconfig.json`,
+### Changed
+- Full rewrite from TypeScript to Rust (edition 2021).
+- LSP server reimplemented on [tower-lsp](https://github.com/ebkalderon/tower-lsp).
+- CLI `gregolint` ported to Rust with the same interface (`-s`, `-i`, `-h`, `-V`).
+- GABC and NABC parsers rewritten preserving behaviour and messages.
+- Semantic analyser and ten validation rules ported.
+- Integration with [tree-sitter-gregorio](https://github.com/aiscgre-br/tree-sitter-gregorio)
+  made optional via `tree-sitter` feature flag.
+- Test suite with 58 integration cases covering the GABC parser, NABC parser,
+  validation, leaning indicators, oriscus, and example corpus.
+- Removed Node toolchain artefacts (`package.json`, `tsconfig.json`,
   `jest.config.js`, `.eslintrc.json`, `scripts/`, `node_modules/`).
 
-## 0.1.x
+## [0.1.x]
 
-Histórico anterior (TypeScript) preservado nos commits de Git.
+- Initial TypeScript implementation. History preserved in Git commits.
+
+---
+
+[1.0.0-alpha.1]: https://github.com/aiscgre-br/gregorio-lsp/releases/tag/v1.0.0-alpha.1
