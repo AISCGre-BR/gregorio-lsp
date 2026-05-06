@@ -1,26 +1,26 @@
 # Contributing
 
-Contribuições são bem-vindas. Antes de abrir um PR:
+Contributions are welcome. Before opening a PR:
 
-1. Garanta que `cargo build` e `cargo test` passam localmente.
-2. Rode `cargo fmt` e `cargo clippy --all-targets` (warnings devem ser
-   tratados ou justificados).
-3. Para alterações no parser ou nas regras de validação, adicione testes em
-   `tests/` cobrindo o novo comportamento.
-4. Para mudanças que afetem o protocolo LSP, descreva o impacto em editores
-   típicos (Helix, Neovim, VS Code) na descrição do PR.
+1. Make sure `cargo build` and `cargo test` pass locally.
+2. Run `cargo fmt` and `cargo clippy --all-targets` (warnings must be
+   addressed or justified).
+3. For changes to the parser or validation rules, add tests in `tests/`
+   covering the new behavior.
+4. For changes that affect the LSP protocol, describe the impact on
+   typical editors (Helix, Neovim, VS Code) in the PR description.
 
-## Estilo de commits
+## Commit style
 
-Usamos mensagens curtas no imperativo; quando útil, prefixos
-[Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`,
-`refactor:`, `docs:`, `test:`).
+We use short imperative messages; where helpful, use
+[Conventional Commits](https://www.conventionalcommits.org/) prefixes
+(`feat:`, `fix:`, `refactor:`, `docs:`, `test:`).
 
-## Assinatura
+## Signing
 
-Commits assinados com GPG são preferidos, especialmente para mudanças em
-código de validação ou de servidor.
+GPG-signed commits are preferred, especially for changes to validation
+or server code.
 
-## Estrutura
+## Structure
 
-Veja [README.md](README.md) para visão geral da estrutura de módulos.
+See [README.md](README.md) for an overview of the module structure.
