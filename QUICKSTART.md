@@ -1,10 +1,10 @@
 # Quickstart
 
-## Pré-requisitos
+## Prerequisites
 
-- `rustc` e `cargo` (edição 2021, MSRV 1.70+).
-- Opcional: `tree-sitter-gregorio` em `../tree-sitter-gregorio` para a feature
-  `tree-sitter`.
+- `rustc` and `cargo` (2021 edition, MSRV 1.70+).
+- Optional: `tree-sitter-gregorio` at `../tree-sitter-gregorio` for the
+  `tree-sitter` feature.
 
 ## Build
 
@@ -12,34 +12,34 @@
 cargo build --release
 ```
 
-Os binários ficam em `target/release/`:
+Binaries are placed in `target/release/`:
 
-- `gregorio-lsp` — servidor LSP via stdio.
-- `gregolint` — linter de linha de comando.
+- `gregorio-lsp` — LSP server over stdio.
+- `gregolint` — command-line linter.
 
-Para habilitar a integração tree-sitter:
+To enable the tree-sitter integration:
 
 ```bash
 cargo build --release --features tree-sitter
 ```
 
-## Lint via CLI
+## CLI Lint
 
 ```bash
 gregolint examples/kyrie-xvi.gabc
-gregolint -s warning -i quilisma-missing-connector arquivo.gabc
-cat arquivo.gabc | gregolint -
+gregolint -s warning -i quilisma-missing-connector file.gabc
+cat file.gabc | gregolint -
 ```
 
-Códigos de saída:
+Exit codes:
 
-- `0` — nenhuma diagnóstico de severidade `error`.
-- `1` — pelo menos um erro.
+- `0` — no `error`-severity diagnostics.
+- `1` — at least one error.
 
-## LSP no editor
+## LSP in your editor
 
-Configure o language server `gregorio-lsp` para a linguagem `gabc`
-(extensão `.gabc`). Exemplo (Helix):
+Configure the `gregorio-lsp` language server for the `gabc` language
+(`.gabc` extension). Example (Helix):
 
 ```toml
 [language-server.gregorio-lsp]
@@ -51,7 +51,7 @@ file-types = ["gabc"]
 language-servers = ["gregorio-lsp"]
 ```
 
-A configuração de lint é enviada via `workspace/didChangeConfiguration`:
+Lint configuration is sent via `workspace/didChangeConfiguration`:
 
 ```json
 {
@@ -64,7 +64,7 @@ A configuração de lint é enviada via `workspace/didChangeConfiguration`:
 }
 ```
 
-## Testes
+## Tests
 
 ```bash
 cargo test

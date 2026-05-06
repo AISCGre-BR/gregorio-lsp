@@ -1,40 +1,40 @@
 # gregorio-lsp
 
-Language Server e linter para arquivos GABC (Gregorio) e notação NABC, escritos em Rust.
+Language Server and linter for GABC (Gregorio) files and NABC notation, written in Rust.
 
-Esta é a reescrita Rust do projeto original em TypeScript, fornecendo o mesmo
-conjunto de funcionalidades com binários nativos:
+This is the Rust rewrite of the original TypeScript project, providing the same
+feature set with native binaries:
 
-- `gregorio-lsp` — servidor LSP via stdio (baseado em [tower-lsp](https://github.com/ebkalderon/tower-lsp));
-- `gregolint` — CLI de lint para arquivos GABC e leitura via `stdin`.
+- `gregorio-lsp` — LSP server over stdio (based on [tower-lsp](https://github.com/ebkalderon/tower-lsp));
+- `gregolint` — CLI linter for GABC files and stdin input.
 
-## Funcionalidades
+## Features
 
-- Parser GABC completo (cabeçalhos, sílabas, claves, barras, custos, atributos, modificadores e quebras de linha);
-- Parser NABC (St. Gall, Laon, modificadores, subpunctis/prepunctis, letras significativas e fusões `!`);
-- 10 regras de validação estrutural;
-- Analisador semântico com verificações musicais (quilisma, oriscus scapus, pes quadratum, virga strata etc.);
-- Suporte opcional a [tree-sitter-gregorio](../tree-sitter-gregorio) via feature `tree-sitter`;
-- Suíte de testes de integração com 29 casos cobrindo parser, NABC e validação.
+- Full GABC parser (headers, syllables, clefs, bars, custos, attributes, modifiers, and line breaks);
+- NABC parser (St. Gall, Laon, modifiers, subpunctis/prepunctis, significant letters, and `!` fusions);
+- 10 structural validation rules;
+- Semantic analyzer with musical construction checks (quilisma, oriscus scapus, pes quadratum, virga strata, etc.);
+- Optional [tree-sitter-gregorio](../tree-sitter-gregorio) integration via the `tree-sitter` feature flag;
+- Integration test suite with 29 cases covering parser, NABC, and validation.
 
-## Compilação
+## Building
 
-Requer `cargo` e `rustc` (edição 2021).
+Requires `cargo` and `rustc` (2021 edition).
 
 ```bash
 cargo build --release
 cargo test
-cargo build --release --features tree-sitter   # ativa integração tree-sitter
+cargo build --release --features tree-sitter   # enables tree-sitter integration
 ```
 
-Os binários ficam em `target/release/gregorio-lsp` e `target/release/gregolint`.
+Binaries are placed in `target/release/gregorio-lsp` and `target/release/gregolint`.
 
-## Uso do servidor LSP
+## LSP Server Usage
 
-O binário `gregorio-lsp` lê e escreve mensagens LSP em `stdio`. Configure seu
-editor para iniciá-lo como language server para a linguagem `gabc`.
+The `gregorio-lsp` binary reads and writes LSP messages over `stdio`. Configure your
+editor to launch it as the language server for the `gabc` language.
 
-Exemplo de configuração JSON enviada via `workspace/didChangeConfiguration`:
+Example JSON configuration sent via `workspace/didChangeConfiguration`:
 
 ```json
 {
@@ -47,41 +47,41 @@ Exemplo de configuração JSON enviada via `workspace/didChangeConfiguration`:
 }
 ```
 
-## Uso do CLI `gregolint`
+## `gregolint` CLI Usage
 
 ```bash
 gregolint examples/kyrie-xvi.gabc
-gregolint -s warning -i quilisma-missing-connector arquivo.gabc
-cat arquivo.gabc | gregolint -
+gregolint -s warning -i quilisma-missing-connector file.gabc
+cat file.gabc | gregolint -
 ```
 
-Saída no formato `arquivo:linha:coluna: severidade [código] mensagem`. O
-processo retorna `1` se houver pelo menos um erro.
+Output format: `file:line:column: severity [code] message`. The process exits with
+`1` if at least one error-severity diagnostic is found.
 
-## Estrutura
+## Structure
 
 ```
 src/
-  lib.rs                  # API pública
-  lint.rs                 # pipeline de lint reutilizável
+  lib.rs                  # public API
+  lint.rs                 # reusable lint pipeline
   parser/
-    types.rs              # tipos do AST
-    gabc.rs               # parser GABC
-    nabc.rs               # parser NABC
+    types.rs              # AST types
+    gabc.rs               # GABC parser
+    nabc.rs               # NABC parser
   validation/
-    rules.rs              # regras estruturais
-    semantic.rs           # analisador semântico
-    validator.rs          # orquestrador
-  tree_sitter_integration.rs   # opcional, feature `tree-sitter`
+    rules.rs              # structural rules
+    semantic.rs           # semantic analyzer
+    validator.rs          # orchestrator
+  tree_sitter_integration.rs   # optional, `tree-sitter` feature
   bin/
-    server.rs             # binário gregorio-lsp
-    lint.rs               # binário gregolint
+    server.rs             # gregorio-lsp binary
+    lint.rs               # gregolint binary
 tests/
   gabc_parser.rs
   nabc_parser.rs
   validation.rs
 ```
 
-## Licença
+## License
 
-MIT — Copyright (c) 2026 AISCGre Brasil. Veja [LICENSE](LICENSE).
+MIT — Copyright (c) 2026 AISCGre Brasil. See [LICENSE](LICENSE).
