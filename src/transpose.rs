@@ -1,7 +1,11 @@
-//! GABC pitch transposition.
+//! GABC note manipulation: transposition and empty-group filling.
 //!
-//! Shifts pitch letters (`a`–`n`, `p` and their uppercase equivalents) inside
-//! `(…)` note groups in the music section of a GABC document.
+//! Provides two public operations on the music section of a GABC document:
+//!
+//! * [`shift_notes`] — shifts every pitch letter one step up or down.
+//! * [`fill_empty_groups`] — fills empty `()` groups with the last known pitch.
+//!
+//! Both operations are selection-aware via an optional `byte_range` parameter.
 //!
 //! ## Pitch cycle (ascending)
 //!
@@ -217,6 +221,196 @@ pub fn parse_nabc_lines(text: &str) -> usize {
     }
     0
 }
+
+// ---------------------------------------------------------------------------
+// fill_empty_groups
+// ---------------------------------------------------------------------------
+
+/// Fills every empty `()` group in the music section with the last GABC pitch
+/// letter seen in a preceding non-empty, non-clef note group.
+///
+/// An "empty" group is one whose entire content is whitespace (or has no
+/// content at all): `()` or `( )`.  Non-empty groups whose GABC section
+/// contains no pitch letters are left unchanged and do **not** update the
+/// stored pitch tracker.
+///
+/// Example:
+/// ```text
+/// (fgh) () () → (fgh) (h) (h)
+/// ```
+///
+/// If `byte_range` is `Some(start..end)`, only empty groups whose opening
+/// `(` byte offset falls within that range are filled.  Non-empty groups
+/// outside the range still update the pitch tracker so that in-range empty
+/// groups receive the correct seed.
+///
+/// If `byte_range` is `None`, all empty groups in the music section are
+/// filled.
+pub fn fill_empty_groups(
+    text: &str,
+    byte_range: Option<std::ops::Range<usize>>,
+) -> String {
+    let nabc_lines = parse_nabc_lines(text);
+    let mut result = String::with_capacity(text.len());
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let n = chars.len();
+    let mut i = 0;
+    let mut in_music = false;
+    let mut last_pitch: Option<char> = None;
+
+    while i < n {
+        let (byte_pos, ch) = chars[i];
+
+        // Detect the %% section separator.
+        if !in_music && ch == '%' && i + 1 < n && chars[i + 1].1 == '%' {
+            result.push_str("%%");
+            i += 2;
+            in_music = true;
+            continue;
+        }
+
+        // Headers pass through unchanged.
+        if !in_music {
+            result.push(ch);
+            i += 1;
+            continue;
+        }
+
+        // Comments in the music section pass through unchanged.
+        if ch == '%' {
+            while i < n && chars[i].1 != '\n' {
+                result.push(chars[i].1);
+                i += 1;
+            }
+            continue;
+        }
+
+        // Lyric text (outside parentheses) passes through unchanged.
+        if ch != '(' {
+            result.push(ch);
+            i += 1;
+            continue;
+        }
+
+        // Opening parenthesis: determine group type.
+        let open_byte = byte_pos;
+        let inner = i + 1; // index of first char inside the group
+
+        if is_clef_group(&chars, inner) {
+            // Clef group: pass through unchanged; do NOT update last_pitch.
+            result.push('(');
+            i += 1;
+            while i < n && chars[i].1 != ')' {
+                result.push(chars[i].1);
+                i += 1;
+            }
+            if i < n {
+                result.push(')');
+                i += 1;
+            }
+            continue;
+        }
+
+        if is_empty_group(&chars, inner) {
+            let in_range = byte_range.as_ref().map_or(true, |r| r.contains(&open_byte));
+            if in_range {
+                if let Some(p) = last_pitch {
+                    // Emit filled group.
+                    result.push('(');
+                    result.push(p);
+                    i += 1; // advance past '('
+                    while i < n && chars[i].1 != ')' {
+                        i += 1; // skip whitespace inside empty group
+                    }
+                    result.push(')');
+                    if i < n {
+                        i += 1; // skip ')'
+                    }
+                    continue;
+                }
+            }
+            // Out-of-range or no known pitch: pass through unchanged.
+            result.push('(');
+            i += 1;
+            while i < n && chars[i].1 != ')' {
+                result.push(chars[i].1);
+                i += 1;
+            }
+            if i < n {
+                result.push(')');
+                i += 1;
+            }
+            continue;
+        }
+
+        // Non-empty, non-clef group: update last_pitch, then pass through.
+        if let Some(p) = last_gabc_pitch_in_group(&chars, inner, nabc_lines) {
+            last_pitch = Some(p);
+        }
+        result.push('(');
+        i += 1;
+        while i < n && chars[i].1 != ')' {
+            result.push(chars[i].1);
+            i += 1;
+        }
+        if i < n {
+            result.push(')');
+            i += 1;
+        }
+    }
+
+    result
+}
+
+/// Returns `true` if the group content starting at `chars[start]` (the char
+/// immediately after `(`) consists entirely of whitespace (or is empty).
+fn is_empty_group(chars: &[(usize, char)], start: usize) -> bool {
+    let mut j = start;
+    while j < chars.len() && chars[j].1 != ')' {
+        if !chars[j].1.is_whitespace() {
+            return false;
+        }
+        j += 1;
+    }
+    true
+}
+
+/// Returns the last GABC pitch letter in the GABC segments of the group
+/// whose content starts at `chars[start]` (the char immediately after `(`).
+///
+/// Multi-NABC segmentation is respected: segment `k` is GABC iff
+/// `k mod (nabc_lines + 1) == 0` (with `nabc_lines == 0` meaning only
+/// segment 0 is GABC).  Returns `None` if no GABC pitch is found.
+fn last_gabc_pitch_in_group(
+    chars: &[(usize, char)],
+    start: usize,
+    nabc_lines: usize,
+) -> Option<char> {
+    let period = nabc_lines + 1;
+    let mut seg: usize = 0;
+    let mut last: Option<char> = None;
+    let mut j = start;
+
+    while j < chars.len() && chars[j].1 != ')' {
+        let c = chars[j].1;
+        if c == '|' {
+            seg += 1;
+            j += 1;
+            continue;
+        }
+        let is_gabc = if nabc_lines == 0 { seg == 0 } else { seg % period == 0 };
+        if is_gabc && is_gabc_pitch(c) {
+            last = Some(c);
+        }
+        j += 1;
+    }
+
+    last
+}
+
+// ---------------------------------------------------------------------------
+// is_clef_group
+// ---------------------------------------------------------------------------
 
 /// Returns `true` if the group content starting at `chars[start]` (the
 /// character immediately after `(`) begins with a clef pattern:

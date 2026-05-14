@@ -1,5 +1,5 @@
 use gregorio_lsp::transpose::{
-    is_gabc_pitch, parse_nabc_lines, shift_notes, shift_pitch, ShiftDirection,
+    fill_empty_groups, is_gabc_pitch, parse_nabc_lines, shift_notes, shift_pitch, ShiftDirection,
 };
 
 // ---------------------------------------------------------------------------
@@ -337,4 +337,147 @@ fn test_shift_notes_round_trip() {
     let up = shift_notes(text, ShiftDirection::Up, None);
     let back = shift_notes(&up, ShiftDirection::Down, None);
     assert_eq!(back, text, "Round-trip failed");
+}
+
+// ---------------------------------------------------------------------------
+// fill_empty_groups — basic
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fill_basic() {
+    let text = "%%\n(fgh) () ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(fgh) (h) (h)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_multiple_seeds() {
+    // Each non-empty group sets a new seed; subsequent empty groups use it.
+    let text = "%%\n(fg) () (hi) () ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(fg) (g) (hi) (i) (i)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_no_preceding_pitch_unchanged() {
+    // Empty groups before any note group are left unchanged.
+    let text = "%%\n() () (fg)\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n() () (fg)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_whitespace_only_empty() {
+    // ( ) (with a space) counts as empty.
+    let text = "%%\n(fgh) ( ) ( )\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(fgh) (h) (h)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_no_empty_groups_unchanged() {
+    let text = "%%\n(fg)(hi)\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, text, "Got: {result}");
+}
+
+// ---------------------------------------------------------------------------
+// fill_empty_groups — structure preservation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fill_preserves_headers() {
+    let text = "name: Kyrie;\nmode: 1;\n%%\n(fg) ()\n";
+    let result = fill_empty_groups(text, None);
+    assert!(result.starts_with("name: Kyrie;\nmode: 1;\n%%\n"), "Headers changed: {result}");
+}
+
+#[test]
+fn test_fill_clef_not_a_seed() {
+    // Clef group (c4) must not set last_pitch. The (fg) after it does.
+    let text = "%%\n(c4) (fg) () ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(c4) (fg) (g) (g)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_clef_between_groups() {
+    // A clef change between a note group and an empty group must not reset the
+    // last_pitch.
+    let text = "%%\n(fgh) (c4) () ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(fgh) (c4) (h) (h)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_uppercase_pitch_used_as_seed() {
+    // PunctumInclinatum (uppercase) letters are valid seeds.
+    let text = "%%\n(FGH) ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(FGH) (H)\n", "Got: {result}");
+}
+
+// ---------------------------------------------------------------------------
+// fill_empty_groups — multi-NABC
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fill_multi_nabc_seed() {
+    // nabc-lines: 2 → period = 3 → only segments 0,3,… are GABC.
+    // Seed from (fgh|pu|ta) is 'h' (last GABC pitch).
+    // After (ij|vi|pe) seed updates to 'j'.
+    let text = "nabc-lines: 2;\n%%\n(fgh|pu|ta) () (ij|vi|pe) ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(
+        result,
+        "nabc-lines: 2;\n%%\n(fgh|pu|ta) (h) (ij|vi|pe) (j)\n",
+        "Got: {result}"
+    );
+}
+
+#[test]
+fn test_fill_nabc_content_not_used_as_seed() {
+    // With no nabc-lines, content after '|' is NABC.  Pitch letters in NABC
+    // segments must not be used as the seed.
+    let text = "%%\na(fg|xyz) () (hi)\n";
+    let result = fill_empty_groups(text, None);
+    // Seed from (fg|xyz) should be 'g' (GABC only), not 'z'.
+    assert_eq!(result, "%%\na(fg|xyz) (g) (hi)\n", "Got: {result}");
+}
+
+// ---------------------------------------------------------------------------
+// fill_empty_groups — byte-range selection
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fill_byte_range_fills_only_in_range() {
+    // "%%\n" = 3 bytes
+    // "(fg)" = bytes 3..7   → non-empty, updates last_pitch to 'g'
+    // "()"   = bytes 7..9   → empty, NOT in range 9..11 → unchanged
+    // "()"   = bytes 9..11  → empty, in range → filled with 'g'
+    let text = "%%\n(fg)()()\n";
+    let result = fill_empty_groups(text, Some(9..11));
+    assert_eq!(result, "%%\n(fg)()(g)\n", "Got: {result}");
+}
+
+#[test]
+fn test_fill_byte_range_non_empty_outside_range_updates_seed() {
+    // Non-empty groups outside the range still update last_pitch so that
+    // in-range empty groups receive the correct seed.
+    // "%%\n" = 3 bytes; "(fgh)" = bytes 3..8; "()" = bytes 8..10 (in range)
+    let text = "%%\n(fgh)()(hi)\n";
+    let result = fill_empty_groups(text, Some(8..10));
+    assert_eq!(result, "%%\n(fgh)(h)(hi)\n", "Got: {result}");
+}
+
+// ---------------------------------------------------------------------------
+// fill_empty_groups — idempotency / no-op check
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fill_already_full_unchanged() {
+    // A document with no empty groups must come back identical.
+    let text = "name: Test;\n%%\nKy(fgh)ri(e)e\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, text, "Got: {result}");
 }

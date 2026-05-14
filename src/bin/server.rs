@@ -10,7 +10,7 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_lsp::parser::types::Severity as PSeverity;
 use gregorio_lsp::parser::GabcParser;
-use gregorio_lsp::transpose::{shift_notes, ShiftDirection};
+use gregorio_lsp::transpose::{fill_empty_groups, shift_notes, ShiftDirection};
 #[cfg(feature = "tree-sitter")]
 use gregorio_lsp::tree_sitter_integration::TreeSitterParser;
 #[cfg(feature = "tree-sitter")]
@@ -148,6 +148,7 @@ impl LanguageServer for Backend {
                     commands: vec![
                         "gregorio/shiftNotesUp".to_string(),
                         "gregorio/shiftNotesDown".to_string(),
+                        "gregorio/fillEmptyGroups".to_string(),
                     ],
                     work_done_progress_options: Default::default(),
                 }),
@@ -453,6 +454,37 @@ impl LanguageServer for Backend {
                     ..Default::default()
                 }));
             }
+
+            // Fill-empty-groups action: only offered when there is at least one
+            // empty group to fill.
+            let filled_text = fill_empty_groups(&text, byte_range.clone());
+            if filled_text != text {
+                let title = if is_selection {
+                    "Fill empty note groups in selection"
+                } else {
+                    "Fill empty note groups"
+                };
+                let (end_line, end_col) = doc_end(&text);
+                let full_range = Range {
+                    start: Position::new(0, 0),
+                    end: Position::new(end_line, end_col),
+                };
+                let mut changes = std::collections::HashMap::new();
+                changes.insert(
+                    params.text_document.uri.clone(),
+                    vec![TextEdit { range: full_range, new_text: filled_text }],
+                );
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: title.to_string(),
+                    kind: Some(CodeActionKind::new("source.gabc")),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
+                    is_preferred: Some(false),
+                    ..Default::default()
+                }));
+            }
         }
 
         // Diagnostic-based quickfix actions.
@@ -499,12 +531,6 @@ impl LanguageServer for Backend {
         Ok(if actions.is_empty() { None } else { Some(actions) })
     }
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
-        let dir = match params.command.as_str() {
-            "gregorio/shiftNotesUp" => ShiftDirection::Up,
-            "gregorio/shiftNotesDown" => ShiftDirection::Down,
-            _ => return Ok(None),
-        };
-
         let arg = params.arguments.first().and_then(|v| v.as_object());
         let uri: Url = arg
             .and_then(|a| a.get("uri"))
@@ -537,7 +563,13 @@ impl LanguageServer for Backend {
             if lsp_range.start == lsp_range.end { None } else { lsp_range_to_byte_range(&text, lsp_range) }
         });
 
-        let new_text = shift_notes(&text, dir, byte_range);
+        let new_text = match params.command.as_str() {
+            "gregorio/shiftNotesUp"    => shift_notes(&text, ShiftDirection::Up, byte_range),
+            "gregorio/shiftNotesDown"  => shift_notes(&text, ShiftDirection::Down, byte_range),
+            "gregorio/fillEmptyGroups" => fill_empty_groups(&text, byte_range),
+            _ => return Ok(None),
+        };
+
         if new_text == text {
             return Ok(None);
         }
