@@ -345,6 +345,82 @@ fn reconstruct_note_group_gabc(ng: &NoteGroup) -> String {
     s
 }
 
+/// Returns the trailing line-break marker (`z`, `Z`, `z+`, `z-`, `Z+`, `Z-`) if the gabc
+/// string ends with one, or `None` otherwise. `z0` (auto-custos) is naturally excluded
+/// because it ends with `'0'`, not with `'z'`.
+fn trailing_line_break_marker(gabc: &str) -> Option<&'static str> {
+    // Longer variants first to avoid matching "z" inside "z+"
+    for &suffix in &["z+", "z-", "Z+", "Z-", "z", "Z"] {
+        if gabc.ends_with(suffix) {
+            return Some(suffix);
+        }
+    }
+    None
+}
+
+fn line_break_at_end_of_score(doc: &ParsedDocument) -> Vec<ParseError> {
+    let last = match doc.notation.syllables.last() {
+        Some(s) => s,
+        None => return vec![],
+    };
+    let last_ng = match last.notes.last() {
+        Some(ng) => ng,
+        None => return vec![],
+    };
+
+    let gabc_trimmed = last_ng.gabc.trim_end();
+    let lb_marker = match trailing_line_break_marker(gabc_trimmed) {
+        Some(m) => m,
+        None => return vec![],
+    };
+
+    // Compute fix range: include the opening '(' by subtracting 1 from the start character.
+    // note_start (NoteGroup.range.start) is always at least character 1 because '(' was
+    // consumed before it was recorded.
+    let fix_start = Position::new(
+        last_ng.range.start.line,
+        last_ng.range.start.character.saturating_sub(1),
+    );
+    let fix_range = Range::new(fix_start, last_ng.range.end);
+
+    let other_gabc = gabc_trimmed
+        .strip_suffix(lb_marker)
+        .map(|r| r.trim_end())
+        .unwrap_or("");
+    let has_other_content = !other_gabc.is_empty()
+        || last_ng.nabc.as_ref().map(|n| !n.is_empty()).unwrap_or(false);
+
+    let new_text = if has_other_content {
+        let mut s = String::from("(");
+        s.push_str(other_gabc);
+        if let Some(nabc) = &last_ng.nabc {
+            for line in nabc {
+                s.push('|');
+                s.push_str(line);
+            }
+        }
+        s.push(')');
+        s
+    } else {
+        String::new()
+    };
+
+    vec![
+        ParseError::new(
+            format!(
+                "Forced line break ('{lb_marker}') at end of score is ignored by GregorioTeX. Remove it."
+            ),
+            last_ng.range,
+            Severity::Warning,
+        )
+        .with_code("line-break-at-end-of-score")
+        .with_fix(TextFix {
+            range: fix_range,
+            new_text,
+        }),
+    ]
+}
+
 fn multi_word_syllable(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
@@ -449,6 +525,11 @@ pub const VALIDATE_MULTI_WORD_SYLLABLE: ValidationRule = ValidationRule {
     severity: Severity::Warning,
     validate: multi_word_syllable,
 };
+pub const VALIDATE_LINE_BREAK_AT_END_OF_SCORE: ValidationRule = ValidationRule {
+    name: "line-break-at-end-of-score",
+    severity: Severity::Warning,
+    validate: line_break_at_end_of_score,
+};
 
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
@@ -463,5 +544,6 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,
         &VALIDATE_MULTI_WORD_SYLLABLE,
+        &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
     ]
 }

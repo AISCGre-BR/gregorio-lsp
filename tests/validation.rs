@@ -188,7 +188,100 @@ fn quilisma_missing_connector_no_fix_when_fused() {
     );
 }
 
-// ---------- modifiers-in-fused-glyphs auto-fix ----------
+// ---------- line-break-at-end-of-score auto-fix ----------
+
+#[test]
+fn line_break_at_end_of_score_z_lowercase() {
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) ri(hg) e(fe) *(z)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-at-end-of-score"))
+        .expect("expected line-break-at-end-of-score diagnostic");
+    assert_eq!(d.severity, gregorio_lsp::parser::types::Severity::Warning);
+    assert!(d.message.contains("'z'"), "message should name the marker");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "", "standalone (z) should be removed entirely");
+}
+
+#[test]
+fn line_break_at_end_of_score_z_uppercase() {
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) ri(hg) e(fe) *(Z)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-at-end-of-score"))
+        .expect("expected line-break-at-end-of-score diagnostic for Z");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "");
+}
+
+#[test]
+fn line_break_at_end_of_score_z_plus_variant() {
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) *(z+)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-at-end-of-score"))
+        .expect("expected diagnostic for z+");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "");
+}
+
+#[test]
+fn line_break_at_end_of_score_mixed_with_notes() {
+    // Line break mixed in the same group as real notes
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) e(fgh z)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-at-end-of-score"))
+        .expect("expected diagnostic when z follows notes in same group");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(
+        fix.new_text, "(fgh)",
+        "fix should strip z and keep the notes"
+    );
+}
+
+#[test]
+fn line_break_at_end_of_score_no_false_positive_mid_score() {
+    // Line break in the MIDDLE of the score is fine — not at end
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) *(z) ri(hg) e(fe)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-at-end-of-score")),
+        "line break in middle of score should not trigger the rule"
+    );
+}
+
+#[test]
+fn line_break_at_end_of_score_no_false_positive_clean_score() {
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) ri(hg) e(fe)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-at-end-of-score")),
+        "score without trailing line break should not trigger the rule"
+    );
+}
+
+#[test]
+fn line_break_at_end_of_score_custos_z0_is_not_flagged() {
+    // z0 is an auto-custos, NOT a line break — must not be flagged
+    let text = "name: Test;\n%%\n(c4) Ky(fgf) ri(hg) e(fez0)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-at-end-of-score")),
+        "z0 (auto-custos) must not be treated as a line break"
+    );
+}
+
 
 #[test]
 fn modifiers_in_fused_glyphs_has_fix() {

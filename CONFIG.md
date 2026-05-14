@@ -38,6 +38,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |
 | `multi-word-syllable` | Warning | Multiple space-separated words share a single note group; auto-fixable to `word1() word2(notes)` |
+| `line-break-at-end-of-score` | Warning | Forced line break (`z`/`Z` and variants) at end of score is ignored by GregorioTeX; auto-fixable by removing it |
 | `pes-quadratum-missing-note` | Warning | `q` modifier requires a subsequent note |
 | `quilisma-missing-note` | Warning | Quilisma requires a subsequent note |
 | `oriscus-scapus-isolated` | Warning | `O` requires both a preceding and a subsequent note |

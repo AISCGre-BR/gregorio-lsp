@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New validation rule `line-break-at-end-of-score` (Warning): detects forced
+  line-break markers (`z`, `Z`, `z+`, `z-`, `Z+`, `Z-`) at the end of a score,
+  which GregorioTeX silently ignores while emitting the warning
+  "Package GregorioTeX Warning: Ignoring forced line break ('Z' or 'z') at end of
+  score." The rule is auto-fixable: standalone `(z)` groups are removed entirely;
+  when the marker is mixed with pitch notes (e.g. `(fgh z)`) only the marker is
+  stripped, preserving the notes.
+
 ## [0.4.0] - 2026-05-14
 
 ### Added
