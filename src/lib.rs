@@ -3,7 +3,7 @@
 //! See the binaries `gregorio-lsp` (LSP server) and `gregolint` (CLI linter).
 
 pub mod parser;
-pub mod transpose;
+pub mod note_ops;
 pub mod validation;
 pub mod lint;
 

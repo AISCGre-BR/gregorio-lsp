@@ -10,7 +10,7 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_lsp::parser::types::Severity as PSeverity;
 use gregorio_lsp::parser::GabcParser;
-use gregorio_lsp::transpose::{fill_empty_groups, shift_notes, ShiftDirection};
+use gregorio_lsp::note_ops::{fill_empty_groups, shift_notes, ShiftDirection};
 #[cfg(feature = "tree-sitter")]
 use gregorio_lsp::tree_sitter_integration::TreeSitterParser;
 #[cfg(feature = "tree-sitter")]
