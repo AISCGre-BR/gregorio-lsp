@@ -35,7 +35,9 @@ impl TreeSitterParser {
         let old_end_byte = byte_offset_for_position(old_text, range.end)?;
 
         let mut new_text = String::with_capacity(
-            old_text.len().saturating_sub(old_end_byte.saturating_sub(start_byte))
+            old_text
+                .len()
+                .saturating_sub(old_end_byte.saturating_sub(start_byte))
                 + replacement.len(),
         );
         new_text.push_str(&old_text[..start_byte]);
@@ -66,7 +68,10 @@ impl TreeSitterParser {
 
     pub fn extract_query_diagnostics(&self, tree: &Tree, text: &str) -> Vec<ParseError> {
         let mut diagnostics = Vec::new();
-        let query = match Query::new(&tree_sitter_gregorio::language(), tree_sitter_gregorio::DIAGNOSTICS_QUERY) {
+        let query = match Query::new(
+            &tree_sitter_gregorio::language(),
+            tree_sitter_gregorio::DIAGNOSTICS_QUERY,
+        ) {
             Ok(q) => q,
             Err(_) => return diagnostics,
         };
@@ -108,10 +113,10 @@ impl TreeSitterParser {
         position: Position,
     ) -> Option<Node<'tree>> {
         let target = point_for_position(position, text);
-        Some(tree.root_node().descendant_for_point_range(
-            target,
-            target,
-        )?)
+        Some(
+            tree.root_node()
+                .descendant_for_point_range(target, target)?,
+        )
     }
 
     pub fn node_text<'a>(&self, node: Node<'_>, text: &'a str) -> &'a str {
@@ -133,15 +138,17 @@ fn visit_errors(
     errors: &mut Vec<ParseError>,
 ) {
     if node.has_error() && (node.kind() == "ERROR" || node.is_missing()) {
-        errors.push(ParseError::new(
-            format!("Syntax error: unexpected {}", node.kind()),
-            Range::new(
-                lsp_position_from_point(text, node.start_position()),
-                lsp_position_from_point(text, node.end_position()),
-            ),
-            Severity::Error,
-        )
-        .with_code("ts-syntax-error"));
+        errors.push(
+            ParseError::new(
+                format!("Syntax error: unexpected {}", node.kind()),
+                Range::new(
+                    lsp_position_from_point(text, node.start_position()),
+                    lsp_position_from_point(text, node.end_position()),
+                ),
+                Severity::Error,
+            )
+            .with_code("ts-syntax-error"),
+        );
     }
     if cursor.goto_first_child() {
         loop {

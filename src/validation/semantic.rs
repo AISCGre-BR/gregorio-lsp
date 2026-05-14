@@ -112,7 +112,11 @@ impl SemanticAnalyzer {
     fn validate_syllables(&mut self, syllables: &[Syllable], headers: &HeaderMap) {
         let has_nabc_lines = headers.has("nabc-lines");
         for i in 0..syllables.len() {
-            let prev = if i == 0 { None } else { Some(&syllables[i - 1]) };
+            let prev = if i == 0 {
+                None
+            } else {
+                Some(&syllables[i - 1])
+            };
             let syll = &syllables[i];
             for note_group in &syll.notes {
                 self.validate_note_group(note_group, has_nabc_lines, prev);
@@ -198,7 +202,9 @@ impl SemanticAnalyzer {
             }
 
             let has_oriscus_scapus = has_mod(note, ModifierType::OriscusScapus);
-            let prev_fusion = prev.map(|p| has_mod(p, ModifierType::Fusion)).unwrap_or(false);
+            let prev_fusion = prev
+                .map(|p| has_mod(p, ModifierType::Fusion))
+                .unwrap_or(false);
             let cur_fusion = has_mod(note, ModifierType::Fusion);
             if has_oriscus_scapus {
                 let valid_prev = prev.is_some() || prev_fusion;
@@ -219,7 +225,9 @@ impl SemanticAnalyzer {
                         fix: None,
                     });
                 } else if !valid_prev {
-                    let next_pitch = next.map(|n| n.pitch).unwrap_or_else(|| next_pitch_example(note.pitch));
+                    let next_pitch = next
+                        .map(|n| n.pitch)
+                        .unwrap_or_else(|| next_pitch_example(note.pitch));
                     self.warnings.push(SemanticError {
                         code: "oriscus-scapus-missing-preceding".into(),
                         message: format!(
@@ -235,7 +243,9 @@ impl SemanticAnalyzer {
                         fix: None,
                     });
                 } else if !valid_next {
-                    let prev_pitch = prev.map(|p| p.pitch).unwrap_or_else(|| previous_pitch_example(note.pitch));
+                    let prev_pitch = prev
+                        .map(|p| p.pitch)
+                        .unwrap_or_else(|| previous_pitch_example(note.pitch));
                     self.warnings.push(SemanticError {
                         code: "oriscus-scapus-missing-subsequent".into(),
                         message: format!(
@@ -295,9 +305,7 @@ impl SemanticAnalyzer {
             }
 
             // Virga strata followed by equal/higher pitch
-            if note.shape == NoteShape::Virga
-                && has_mod(note, ModifierType::Strata)
-            {
+            if note.shape == NoteShape::Virga && has_mod(note, ModifierType::Strata) {
                 if let Some(n) = next {
                     if compare_pitch(n.pitch, note.pitch) >= 0 {
                         self.warnings.push(SemanticError {
@@ -319,9 +327,7 @@ impl SemanticAnalyzer {
             }
 
             // Pes stratus
-            if note.shape == NoteShape::Punctum
-                && has_mod(note, ModifierType::Strata)
-            {
+            if note.shape == NoteShape::Punctum && has_mod(note, ModifierType::Strata) {
                 if let (Some(pes), Some(after_pes)) = (notes.get(i + 1), notes.get(i + 2)) {
                     if has_mod(pes, ModifierType::Strata)
                         && compare_pitch(pes.pitch, note.pitch) > 0
@@ -398,7 +404,10 @@ impl SemanticAnalyzer {
         }
         for i in 0..notes.len() {
             let note = &notes[i];
-            if note.shape == NoteShape::Quilisma && i > 0 && !has_mod(&notes[i - 1], ModifierType::Fusion) {
+            if note.shape == NoteShape::Quilisma
+                && i > 0
+                && !has_mod(&notes[i - 1], ModifierType::Fusion)
+            {
                 let insert_pos = note.range.start;
                 self.info.push(SemanticError {
                     code: "quilisma-missing-connector".into(),
@@ -427,8 +436,14 @@ fn has_mod(note: &Note, kind: ModifierType) -> bool {
 
 fn compare_pitch(a: char, b: char) -> i32 {
     let order = "abcdefghijklmn";
-    let ia = order.find(a.to_ascii_lowercase()).map(|x| x as i32).unwrap_or(-1);
-    let ib = order.find(b.to_ascii_lowercase()).map(|x| x as i32).unwrap_or(-1);
+    let ia = order
+        .find(a.to_ascii_lowercase())
+        .map(|x| x as i32)
+        .unwrap_or(-1);
+    let ib = order
+        .find(b.to_ascii_lowercase())
+        .map(|x| x as i32)
+        .unwrap_or(-1);
     if ia < 0 || ib < 0 {
         return 0;
     }

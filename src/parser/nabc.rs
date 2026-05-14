@@ -270,8 +270,11 @@ fn parse_subpunctis_prepunctis(
         return None;
     }
     let mut pos = 2;
-    let modifier = if pos < chars.len() && matches!(chars[pos], 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'n' | 'q' | 'z')
-    {
+    let modifier = if pos < chars.len()
+        && matches!(
+            chars[pos],
+            't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'n' | 'q' | 'z'
+        ) {
         let m = chars[pos];
         pos += 1;
         Some(m)
@@ -338,8 +341,7 @@ fn parse_significant_letter(
         return None;
     }
     let total_length = pos + 1;
-    let range =
-        start.map(|s| Range::new(s, Position::new(s.line, s.character + total_length)));
+    let range = start.map(|s| Range::new(s, Position::new(s.line, s.character + total_length)));
     Some((
         NabcSignificantLetter {
             kind,

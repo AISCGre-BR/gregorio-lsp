@@ -19,8 +19,9 @@ fn lint(text: &str) -> Vec<gregorio_lsp::parser::types::ParseError> {
 fn missing_name_header_warning() {
     let text = "mode: 1;\n%%\n(c4) test(f)";
     let diags = lint(text);
-    assert!(diags.iter().any(|d| d.message.contains("no name specified")
-        || d.message.contains("No name specified")));
+    assert!(diags.iter().any(
+        |d| d.message.contains("no name specified") || d.message.contains("No name specified")
+    ));
 }
 
 #[test]
@@ -38,7 +39,9 @@ fn quilisma_followed_by_lower_pitch_warning() {
     let text = "name: Test;\n%%\n(c4) test(fwe)";
     let doc = GabcParser::new(text).parse();
     let diags = DocumentValidator::new().validate(&doc);
-    assert!(diags.iter().any(|d| d.message.contains("Quilisma followed")));
+    assert!(diags
+        .iter()
+        .any(|d| d.message.contains("Quilisma followed")));
 }
 
 #[test]
@@ -64,9 +67,7 @@ fn semantic_oriscus_scapus_isolated_warning() {
     let text = "name: Test;\n%%\n(c4) test(fO)";
     let doc = GabcParser::new(text).parse();
     let diags = analyze_semantics(&doc);
-    assert!(diags
-        .iter()
-        .any(|d| d.code.starts_with("oriscus-scapus")));
+    assert!(diags.iter().any(|d| d.code.starts_with("oriscus-scapus")));
 }
 
 #[test]
@@ -87,8 +88,10 @@ fn lint_min_severity_filters_info() {
             ignore_codes: Vec::new(),
         },
     );
-    assert!(infos.iter().any(|d| d.severity == Severity::Info)
-        || warnings.iter().all(|d| d.severity != Severity::Info));
+    assert!(
+        infos.iter().any(|d| d.severity == Severity::Info)
+            || warnings.iter().all(|d| d.severity != Severity::Info)
+    );
     assert!(warnings.iter().all(|d| d.severity != Severity::Info));
 }
 
@@ -146,7 +149,10 @@ fn nabc_without_header_has_fix() {
     assert_eq!(fix.new_text, "nabc-lines: 1;\n");
     assert_eq!(fix.range.start.line, 1);
     assert_eq!(fix.range.start.character, 0);
-    assert_eq!(fix.range.end, fix.range.start, "insertion fix must be zero-width");
+    assert_eq!(
+        fix.range.end, fix.range.start,
+        "insertion fix must be zero-width"
+    );
 }
 
 #[test]
@@ -173,7 +179,10 @@ fn quilisma_missing_connector_has_fix() {
         .expect("expected quilisma-missing-connector diagnostic");
     let fix = d.fix.as_ref().expect("expected a fix");
     assert_eq!(fix.new_text, "@");
-    assert_eq!(fix.range.start, fix.range.end, "insertion fix must be zero-width");
+    assert_eq!(
+        fix.range.start, fix.range.end,
+        "insertion fix must be zero-width"
+    );
 }
 
 #[test]
@@ -201,7 +210,10 @@ fn line_break_at_end_of_score_z_lowercase() {
     assert_eq!(d.severity, gregorio_lsp::parser::types::Severity::Warning);
     assert!(d.message.contains("'z'"), "message should name the marker");
     let fix = d.fix.as_ref().expect("expected a fix");
-    assert_eq!(fix.new_text, "", "standalone (z) should be removed entirely");
+    assert_eq!(
+        fix.new_text, "",
+        "standalone (z) should be removed entirely"
+    );
 }
 
 #[test]
@@ -282,7 +294,6 @@ fn line_break_at_end_of_score_custos_z0_is_not_flagged() {
     );
 }
 
-
 #[test]
 fn modifiers_in_fused_glyphs_has_fix() {
     let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|viS!ta)";
@@ -308,5 +319,191 @@ fn modifiers_in_fused_glyphs_no_fix_when_last_has_modifier() {
             .iter()
             .any(|d| d.code.as_deref() == Some("modifiers-in-fused-glyphs")),
         "unexpected modifiers-in-fused-glyphs when modifier is on last glyph"
+    );
+}
+
+// ---------- duplicate-headers ----------
+
+#[test]
+fn duplicate_headers_warns_on_repeated_name() {
+    let text = "name: Foo;\nname: Bar;\n%%\n(c4) test(f)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("duplicate-headers"))
+        .expect("expected duplicate-headers diagnostic");
+    assert_eq!(d.severity, Severity::Warning);
+    assert!(d.message.contains("'name'"), "message should name the key");
+}
+
+#[test]
+fn duplicate_headers_no_false_positive_unique_headers() {
+    let text = "name: Foo;\nmode: 1;\n%%\n(c4) test(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-headers")),
+        "unique headers should not trigger duplicate-headers"
+    );
+}
+
+#[test]
+fn duplicate_headers_allows_two_annotations() {
+    let text = "name: Foo;\nannotation: 1;\nannotation: 2;\n%%\n(c4) test(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-headers")),
+        "two annotation headers are allowed by GregorioTeX"
+    );
+}
+
+#[test]
+fn duplicate_headers_warns_on_three_annotations() {
+    let text = "name: Foo;\nannotation: 1;\nannotation: 2;\nannotation: 3;\n%%\n(c4) test(f)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-headers")),
+        "three annotation headers should trigger duplicate-headers"
+    );
+}
+
+// ---------- duplicate-syllable-center ----------
+
+#[test]
+fn duplicate_syllable_center_warns_on_two_open_braces() {
+    let text = "name: Test;\n%%\n(c4) {al}{le}(f)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-syllable-center")),
+        "two {{}} markers in one syllable should trigger duplicate-syllable-center"
+    );
+}
+
+#[test]
+fn duplicate_syllable_center_no_false_positive_single_center() {
+    let text = "name: Test;\n%%\n(c4) {al}(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-syllable-center")),
+        "single {{}} marker should not trigger duplicate-syllable-center"
+    );
+}
+
+// ---------- center-after-protrusion ----------
+
+#[test]
+fn center_after_protrusion_warns() {
+    let text = "name: Test;\n%%\n(c4) al<pr>{le}(f)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("center-after-protrusion")),
+        "{{}} after <pr> should trigger center-after-protrusion"
+    );
+}
+
+#[test]
+fn center_after_protrusion_no_false_positive_pr_after_center() {
+    let text = "name: Test;\n%%\n(c4) {al}<pr>(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("center-after-protrusion")),
+        "{{}} before <pr> should not trigger center-after-protrusion"
+    );
+}
+
+// ---------- unmatched-center-close ----------
+
+#[test]
+fn unmatched_center_close_warns_and_fixes() {
+    // Stray '}' with no preceding '{'
+    let text = "name: Test;\n%%\n(c4) al}le(f)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("unmatched-center-close"))
+        .expect("expected unmatched-center-close diagnostic");
+    assert_eq!(d.severity, Severity::Warning);
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "alle", "fix should remove the stray '}}' ");
+}
+
+#[test]
+fn unmatched_center_close_no_false_positive_matched() {
+    let text = "name: Test;\n%%\n(c4) {al}(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("unmatched-center-close")),
+        "matched {{}} should not trigger unmatched-center-close"
+    );
+}
+
+// ---------- duplicate-protrusion ----------
+
+#[test]
+fn duplicate_protrusion_warns_and_fixes() {
+    let text = "name: Test;\n%%\n(c4) al<pr>le<pr:0.5>(f)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("duplicate-protrusion"))
+        .expect("expected duplicate-protrusion diagnostic");
+    assert_eq!(d.severity, Severity::Warning);
+    let fix = d.fix.as_ref().expect("expected a fix");
+    // Fix should keep only the first <pr> tag
+    assert_eq!(fix.new_text, "al<pr>le");
+}
+
+#[test]
+fn duplicate_protrusion_no_false_positive_single_pr() {
+    let text = "name: Test;\n%%\n(c4) al<pr>(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-protrusion")),
+        "single <pr> should not trigger duplicate-protrusion"
+    );
+}
+
+// ---------- unclosed-center-before-protrusion ----------
+
+#[test]
+fn unclosed_center_before_protrusion_warns_and_fixes() {
+    let text = "name: Test;\n%%\n(c4) {al<pr>le(f)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("unclosed-center-before-protrusion"))
+        .expect("expected unclosed-center-before-protrusion diagnostic");
+    assert_eq!(d.severity, Severity::Warning);
+    let fix = d.fix.as_ref().expect("expected a fix");
+    // Fix should insert '}' before the <pr> tag
+    assert_eq!(fix.new_text, "{al}<pr>le");
+}
+
+#[test]
+fn unclosed_center_before_protrusion_no_false_positive_closed() {
+    let text = "name: Test;\n%%\n(c4) {al}<pr>(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("unclosed-center-before-protrusion")),
+        "closed center before <pr> should not trigger the rule"
     );
 }

@@ -15,6 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   score." The rule is auto-fixable: standalone `(z)` groups are removed entirely;
   when the marker is mixed with pitch notes (e.g. `(fgh z)`) only the marker is
   stripped, preserving the notes.
+- New validation rule `duplicate-headers` (Warning): detects header keys defined
+  more than once in the GABC preamble, mirroring GregorioTeX's warning
+  "several %s definitions found". The `annotation` header is excluded from the
+  check up to 2 entries (GregorioTeX allows exactly 2 annotations); 3 or more
+  `annotation` headers trigger the warning.
+- New validation rule `duplicate-syllable-center` (Warning): detects a syllable
+  text that contains two or more `{…}` forced-center markers; only the first is
+  used by GregorioTeX (W-C05).
+- New validation rule `center-after-protrusion` (Warning): detects a forced-center
+  `{…}` marker that appears after a `<pr>` protrusion tag in syllable text; the
+  center is silently ignored by GregorioTeX (W-C06).
+- New validation rule `unmatched-center-close` (Warning, auto-fixable): detects a
+  `}` appearing in syllable text without a preceding `{`; auto-fix removes the
+  stray closing brace (W-C07).
+- New validation rule `duplicate-protrusion` (Warning, auto-fixable): detects
+  syllable text with more than one `<pr>` protrusion tag; auto-fix keeps only the
+  first tag (W-C08).
+- New validation rule `unclosed-center-before-protrusion` (Warning, auto-fixable):
+  detects an open `{` forced-center that is never closed before a `<pr>` protrusion
+  tag; auto-fix inserts the missing `}` immediately before the protrusion (W-C09).
+- `Syllable.text_range`: new `Range` field on the `Syllable` AST node that covers
+  only the text portion of a syllable (before the opening `(`), enabling precise
+  diagnostic ranges for text-markup rules.
+- `HeaderMap.duplicate_keys`: new `Vec<String>` field that records each key
+  overwritten during header parsing, enabling the `duplicate-headers` rule.
 
 ## [0.4.0] - 2026-05-14
 

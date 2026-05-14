@@ -55,8 +55,47 @@ fn name_header(doc: &ParsedDocument) -> Vec<ParseError> {
     }
 }
 
-fn duplicate_headers(_doc: &ParsedDocument) -> Vec<ParseError> {
-    Vec::new() // Parser collapses duplicates (mirrors TS behavior).
+fn duplicate_headers(doc: &ParsedDocument) -> Vec<ParseError> {
+    // Count how many times each key was overwritten (one entry per overwrite in duplicate_keys).
+    let mut overwrite_counts: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::new();
+    for key in &doc.headers.duplicate_keys {
+        *overwrite_counts.entry(key.as_str()).or_insert(0) += 1;
+    }
+
+    let mut errors = Vec::new();
+    for (key, &count) in &overwrite_counts {
+        if *key == "annotation" {
+            // GregorioTeX accepts exactly 2 `annotation:` entries; warn only for 3+.
+            if count >= 2 {
+                errors.push(
+                    ParseError::new(
+                        format!(
+                            "Too many 'annotation' definitions ({}); \
+                             GregorioTeX only uses the first 2.",
+                            count + 1
+                        ),
+                        Range::zero(),
+                        Severity::Warning,
+                    )
+                    .with_code("duplicate-headers"),
+                );
+            }
+        } else {
+            errors.push(
+                ParseError::new(
+                    format!(
+                        "Header '{key}' defined {} time(s); only the last definition is used.",
+                        count + 1
+                    ),
+                    Range::zero(),
+                    Severity::Warning,
+                )
+                .with_code("duplicate-headers"),
+            );
+        }
+    }
+    errors
 }
 
 fn first_syllable_line_break(doc: &ParsedDocument) -> Vec<ParseError> {
@@ -90,11 +129,11 @@ fn first_syllable_clef_change(doc: &ParsedDocument) -> Vec<ParseError> {
 
 fn nabc_without_header(doc: &ParsedDocument) -> Vec<ParseError> {
     let has_header = doc.headers.has("nabc-lines");
-    let has_nabc = doc
-        .notation
-        .syllables
-        .iter()
-        .any(|s| s.notes.iter().any(|n| n.nabc.as_ref().is_some_and(|v| !v.is_empty())));
+    let has_nabc = doc.notation.syllables.iter().any(|s| {
+        s.notes
+            .iter()
+            .any(|n| n.nabc.as_ref().is_some_and(|v| !v.is_empty()))
+    });
     if has_nabc && !has_header {
         let insert_line = doc.notation.range.start.line.saturating_sub(1);
         let insert_pos = Position::new(insert_line, 0);
@@ -218,13 +257,14 @@ fn balanced_pitch_descriptors_in_fused_glyphs(doc: &ParsedDocument) -> Vec<Parse
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
         for note_group in &syllable.notes {
-            let parsed_owned: Option<Vec<NabcGlyphDescriptor>> = match (&note_group.nabc_parsed, &note_group.nabc) {
-                (Some(p), _) if !p.is_empty() => Some(p.clone()),
-                (_, Some(raw)) if !raw.is_empty() => {
-                    Some(parse_nabc_snippets(raw, Some(note_group.range.start)))
-                }
-                _ => None,
-            };
+            let parsed_owned: Option<Vec<NabcGlyphDescriptor>> =
+                match (&note_group.nabc_parsed, &note_group.nabc) {
+                    (Some(p), _) if !p.is_empty() => Some(p.clone()),
+                    (_, Some(raw)) if !raw.is_empty() => {
+                        Some(parse_nabc_snippets(raw, Some(note_group.range.start)))
+                    }
+                    _ => None,
+                };
             let Some(parsed) = parsed_owned else { continue };
             for glyph in &parsed {
                 let chain = collect_fusion_chain(glyph);
@@ -234,8 +274,8 @@ fn balanced_pitch_descriptors_in_fused_glyphs(doc: &ParsedDocument) -> Vec<Parse
                 let pitches: Vec<bool> = chain.iter().map(|g| g.pitch.is_some()).collect();
                 let all_false = pitches.iter().all(|p| !*p);
                 let all_true = pitches.iter().all(|p| *p);
-                let only_last = pitches[..pitches.len() - 1].iter().all(|p| !*p)
-                    && *pitches.last().unwrap();
+                let only_last =
+                    pitches[..pitches.len() - 1].iter().all(|p| !*p) && *pitches.last().unwrap();
                 let balanced = all_false || all_true || only_last;
                 if !balanced {
                     let range = glyph.range.unwrap_or(note_group.range);
@@ -264,8 +304,14 @@ fn fix_nabc_fusion_modifiers(line: &str, modifier_chars: &[char]) -> String {
     let mut collected: String = String::new();
     for (i, part) in parts.iter().enumerate() {
         if i < parts.len() - 1 {
-            let stripped: String = part.chars().filter(|c| !modifier_chars.contains(c)).collect();
-            let mods: String = part.chars().filter(|c| modifier_chars.contains(c)).collect();
+            let stripped: String = part
+                .chars()
+                .filter(|c| !modifier_chars.contains(c))
+                .collect();
+            let mods: String = part
+                .chars()
+                .filter(|c| modifier_chars.contains(c))
+                .collect();
             fixed_parts.push(stripped);
             collected.push_str(&mods);
         } else {
@@ -280,7 +326,9 @@ fn modifiers_in_fused_glyphs(doc: &ParsedDocument) -> Vec<ParseError> {
     let modifier_chars = ['S', 'G', 'M', '-', '>', '~'];
     for syllable in &doc.notation.syllables {
         for note in &syllable.notes {
-            let Some(nabc) = note.nabc.as_ref() else { continue };
+            let Some(nabc) = note.nabc.as_ref() else {
+                continue;
+            };
             let mut offending_part: Option<(&str, &str)> = None; // (part, last)
             for line in nabc {
                 if !line.contains('!') {
@@ -388,7 +436,11 @@ fn line_break_at_end_of_score(doc: &ParsedDocument) -> Vec<ParseError> {
         .map(|r| r.trim_end())
         .unwrap_or("");
     let has_other_content = !other_gabc.is_empty()
-        || last_ng.nabc.as_ref().map(|n| !n.is_empty()).unwrap_or(false);
+        || last_ng
+            .nabc
+            .as_ref()
+            .map(|n| !n.is_empty())
+            .unwrap_or(false);
 
     let new_text = if has_other_content {
         let mut s = String::from("(");
@@ -463,7 +515,321 @@ fn multi_word_syllable(doc: &ParsedDocument) -> Vec<ParseError> {
     out
 }
 
-// ---------- Public API ----------
+// ---------- Syllable text-markup helpers ----------
+
+/// Returns the raw (original, with style tags intact) text of a syllable.
+fn syllable_raw_text(syllable: &Syllable) -> &str {
+    syllable
+        .text_with_styles
+        .as_deref()
+        .unwrap_or(&syllable.text)
+}
+
+/// If `text[pos..]` starts with a `<pr…>` tag (`<pr>`, `<pr/>`, `<pr:…>`),
+/// returns the byte offset just past the closing `>`. Otherwise returns `None`.
+fn pr_tag_end(text: &str, pos: usize) -> Option<usize> {
+    let rest = text.get(pos..)?;
+    if !rest.starts_with("<pr") {
+        return None;
+    }
+    let after = rest.as_bytes().get(3).copied()?;
+    if after != b'>' && after != b':' && after != b'/' {
+        return None;
+    }
+    let close = rest.find('>')?;
+    Some(pos + close + 1)
+}
+
+/// Counts how many `<pr…>` tags appear in `text`.
+fn count_pr_tags(text: &str) -> usize {
+    let mut count = 0;
+    let mut pos = 0;
+    while pos < text.len() {
+        if let Some(end) = pr_tag_end(text, pos) {
+            count += 1;
+            pos = end;
+        } else {
+            pos += text[pos..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+        }
+    }
+    count
+}
+
+/// Returns `text` with all but the first `<pr…>` tag removed.
+fn remove_duplicate_pr_tags(text: &str) -> String {
+    let mut result = String::new();
+    let mut pos = 0;
+    let mut kept_first = false;
+    while pos < text.len() {
+        if let Some(end) = pr_tag_end(text, pos) {
+            if !kept_first {
+                kept_first = true;
+                result.push_str(&text[pos..end]);
+            }
+            pos = end;
+        } else {
+            let ch_len = text[pos..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            result.push_str(&text[pos..pos + ch_len]);
+            pos += ch_len;
+        }
+    }
+    result
+}
+
+/// Returns `text` with unmatched `}` characters removed (i.e. `}` appearing when
+/// `{`-depth is already zero).
+fn remove_unmatched_close_braces(text: &str) -> String {
+    let mut result = String::new();
+    let mut depth = 0usize;
+    for ch in text.chars() {
+        match ch {
+            '{' => {
+                depth += 1;
+                result.push(ch);
+            }
+            '}' => {
+                if depth > 0 {
+                    depth -= 1;
+                    result.push(ch);
+                }
+                // else: skip the unmatched '}'
+            }
+            _ => result.push(ch),
+        }
+    }
+    result
+}
+
+/// Returns `text` with a closing `}` inserted immediately before the first `<pr…>` tag
+/// found while a `{` is still open.
+fn close_center_before_pr(text: &str) -> String {
+    let mut result = String::new();
+    let mut pos = 0;
+    let mut depth = 0usize;
+    let mut inserted = false;
+    while pos < text.len() {
+        if !inserted {
+            if let Some(end) = pr_tag_end(text, pos) {
+                if depth > 0 {
+                    result.push('}');
+                    inserted = true;
+                }
+                result.push_str(&text[pos..end]);
+                pos = end;
+                continue;
+            }
+        }
+        let ch_len = text[pos..]
+            .chars()
+            .next()
+            .map(|c| c.len_utf8())
+            .unwrap_or(1);
+        let ch = text[pos..].chars().next().unwrap_or('\0');
+        match ch {
+            '{' => depth += 1,
+            '}' if depth > 0 => depth -= 1,
+            _ => {}
+        }
+        result.push_str(&text[pos..pos + ch_len]);
+        pos += ch_len;
+    }
+    result
+}
+
+// ---------- Syllable text-markup rules ----------
+
+fn duplicate_syllable_center(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        let open_count = syllable.text.chars().filter(|&c| c == '{').count();
+        if open_count >= 2 {
+            out.push(
+                ParseError::new(
+                    format!(
+                        "Syllable '{}' has {} forced-center '{{}}' markers; \
+                         only the first is used by GregorioTeX.",
+                        syllable.text, open_count
+                    ),
+                    syllable.text_range,
+                    Severity::Warning,
+                )
+                .with_code("duplicate-syllable-center"),
+            );
+        }
+    }
+    out
+}
+
+fn center_after_protrusion(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        let text = &syllable.text;
+        let mut pos = 0;
+        let mut found_pr = false;
+        let mut fire = false;
+        while pos < text.len() {
+            if let Some(end) = pr_tag_end(text, pos) {
+                found_pr = true;
+                pos = end;
+                continue;
+            }
+            let ch_len = text[pos..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            let ch = text[pos..].chars().next().unwrap_or('\0');
+            if found_pr && ch == '{' {
+                fire = true;
+                break;
+            }
+            pos += ch_len;
+        }
+        if fire {
+            out.push(
+                ParseError::new(
+                    format!(
+                        "Forced center '{{}}' appears after a '<pr>' protrusion in syllable '{}'; \
+                         the center will be ignored by GregorioTeX.",
+                        syllable.text
+                    ),
+                    syllable.text_range,
+                    Severity::Warning,
+                )
+                .with_code("center-after-protrusion"),
+            );
+        }
+    }
+    out
+}
+
+fn unmatched_center_close(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        let mut depth = 0usize;
+        let mut found = false;
+        for ch in syllable.text.chars() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    if depth == 0 {
+                        found = true;
+                        break;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+        }
+        if found {
+            let fixed = remove_unmatched_close_braces(syllable_raw_text(syllable));
+            out.push(
+                ParseError::new(
+                    format!(
+                        "Unmatched '}}' in syllable '{}': \
+                         closing center marker without an opening '{{'.",
+                        syllable.text
+                    ),
+                    syllable.text_range,
+                    Severity::Warning,
+                )
+                .with_code("unmatched-center-close")
+                .with_fix(TextFix {
+                    range: syllable.text_range,
+                    new_text: fixed,
+                }),
+            );
+        }
+    }
+    out
+}
+
+fn duplicate_protrusion(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        let count = count_pr_tags(&syllable.text);
+        if count >= 2 {
+            let fixed = remove_duplicate_pr_tags(syllable_raw_text(syllable));
+            out.push(
+                ParseError::new(
+                    format!(
+                        "Syllable '{}' has {} '<pr>' protrusion tags; \
+                         only the first is used by GregorioTeX.",
+                        syllable.text, count
+                    ),
+                    syllable.text_range,
+                    Severity::Warning,
+                )
+                .with_code("duplicate-protrusion")
+                .with_fix(TextFix {
+                    range: syllable.text_range,
+                    new_text: fixed,
+                }),
+            );
+        }
+    }
+    out
+}
+
+fn unclosed_center_before_protrusion(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        let text = &syllable.text;
+        let mut pos = 0;
+        let mut depth = 0usize;
+        let mut found = false;
+        while pos < text.len() {
+            if let Some(end) = pr_tag_end(text, pos) {
+                if depth > 0 {
+                    found = true;
+                    break;
+                }
+                pos = end;
+                continue;
+            }
+            let ch_len = text[pos..]
+                .chars()
+                .next()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            let ch = text[pos..].chars().next().unwrap_or('\0');
+            match ch {
+                '{' => depth += 1,
+                '}' if depth > 0 => depth -= 1,
+                _ => {}
+            }
+            pos += ch_len;
+        }
+        if found {
+            let fixed = close_center_before_pr(syllable_raw_text(syllable));
+            out.push(
+                ParseError::new(
+                    format!(
+                        "Unclosed center '{{' before '<pr>' protrusion in syllable '{}'; \
+                         GregorioTeX automatically closes the center before the protrusion.",
+                        syllable.text
+                    ),
+                    syllable.text_range,
+                    Severity::Warning,
+                )
+                .with_code("unclosed-center-before-protrusion")
+                .with_fix(TextFix {
+                    range: syllable.text_range,
+                    new_text: fixed,
+                }),
+            );
+        }
+    }
+    out
+}
 
 pub const VALIDATE_NAME_HEADER: ValidationRule = ValidationRule {
     name: "name-header",
@@ -474,6 +840,31 @@ pub const VALIDATE_DUPLICATE_HEADERS: ValidationRule = ValidationRule {
     name: "duplicate-headers",
     severity: Severity::Warning,
     validate: duplicate_headers,
+};
+pub const VALIDATE_DUPLICATE_SYLLABLE_CENTER: ValidationRule = ValidationRule {
+    name: "duplicate-syllable-center",
+    severity: Severity::Warning,
+    validate: duplicate_syllable_center,
+};
+pub const VALIDATE_CENTER_AFTER_PROTRUSION: ValidationRule = ValidationRule {
+    name: "center-after-protrusion",
+    severity: Severity::Warning,
+    validate: center_after_protrusion,
+};
+pub const VALIDATE_UNMATCHED_CENTER_CLOSE: ValidationRule = ValidationRule {
+    name: "unmatched-center-close",
+    severity: Severity::Warning,
+    validate: unmatched_center_close,
+};
+pub const VALIDATE_DUPLICATE_PROTRUSION: ValidationRule = ValidationRule {
+    name: "duplicate-protrusion",
+    severity: Severity::Warning,
+    validate: duplicate_protrusion,
+};
+pub const VALIDATE_UNCLOSED_CENTER_BEFORE_PROTRUSION: ValidationRule = ValidationRule {
+    name: "unclosed-center-before-protrusion",
+    severity: Severity::Warning,
+    validate: unclosed_center_before_protrusion,
 };
 pub const VALIDATE_FIRST_SYLLABLE_LINE_BREAK: ValidationRule = ValidationRule {
     name: "first-syllable-line-break",
@@ -534,6 +925,7 @@ pub const VALIDATE_LINE_BREAK_AT_END_OF_SCORE: ValidationRule = ValidationRule {
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
+        &VALIDATE_DUPLICATE_HEADERS,
         &VALIDATE_FIRST_SYLLABLE_LINE_BREAK,
         &VALIDATE_FIRST_SYLLABLE_CLEF_CHANGE,
         &VALIDATE_NABC_WITHOUT_HEADER,
@@ -545,5 +937,10 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_MODIFIERS_FUSED,
         &VALIDATE_MULTI_WORD_SYLLABLE,
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
+        &VALIDATE_DUPLICATE_SYLLABLE_CENTER,
+        &VALIDATE_CENTER_AFTER_PROTRUSION,
+        &VALIDATE_UNMATCHED_CENTER_CLOSE,
+        &VALIDATE_DUPLICATE_PROTRUSION,
+        &VALIDATE_UNCLOSED_CENTER_BEFORE_PROTRUSION,
     ]
 }

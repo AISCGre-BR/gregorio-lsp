@@ -2,10 +2,10 @@
 //!
 //! See the binaries `gregorio-lsp` (LSP server) and `gregolint` (CLI linter).
 
-pub mod parser;
-pub mod note_ops;
-pub mod validation;
 pub mod lint;
+pub mod note_ops;
+pub mod parser;
+pub mod validation;
 
 #[cfg(feature = "tree-sitter")]
 pub mod tree_sitter_integration;

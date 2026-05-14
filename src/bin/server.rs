@@ -8,9 +8,9 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
+use gregorio_lsp::note_ops::{fill_empty_groups, shift_notes, ShiftDirection};
 use gregorio_lsp::parser::types::Severity as PSeverity;
 use gregorio_lsp::parser::GabcParser;
-use gregorio_lsp::note_ops::{fill_empty_groups, shift_notes, ShiftDirection};
 #[cfg(feature = "tree-sitter")]
 use gregorio_lsp::tree_sitter_integration::TreeSitterParser;
 #[cfg(feature = "tree-sitter")]
@@ -74,7 +74,9 @@ impl Backend {
         };
         let errors = lint_gabc_text(text, &opts);
         let diagnostics = errors.into_iter().map(to_diagnostic).collect();
-        self.client.publish_diagnostics(uri, diagnostics, None).await;
+        self.client
+            .publish_diagnostics(uri, diagnostics, None)
+            .await;
     }
 }
 
@@ -97,7 +99,10 @@ fn to_diagnostic(err: gregorio_lsp::parser::types::ParseError) -> Diagnostic {
     });
     Diagnostic {
         range: Range {
-            start: Position::new(err.range.start.line as u32, err.range.start.character as u32),
+            start: Position::new(
+                err.range.start.line as u32,
+                err.range.start.character as u32,
+            ),
             end: Position::new(err.range.end.line as u32, err.range.end.character as u32),
         },
         severity: Some(severity),
@@ -255,11 +260,9 @@ impl LanguageServer for Backend {
                             character: range.end.character as usize,
                         },
                     };
-                    if let Some((new_text, edit)) = TreeSitterParser::apply_incremental_edit(
-                        &text,
-                        g_range,
-                        &change.text,
-                    ) {
+                    if let Some((new_text, edit)) =
+                        TreeSitterParser::apply_incremental_edit(&text, g_range, &change.text)
+                    {
                         current_tree.edit(&edit);
                         let mut parser = self.ts_parser.lock().unwrap();
                         if let Some(parser) = parser.as_mut() {
@@ -324,7 +327,10 @@ impl LanguageServer for Backend {
         }
         #[cfg(feature = "tree-sitter")]
         {
-            self.ts_trees.lock().unwrap().remove(&params.text_document.uri);
+            self.ts_trees
+                .lock()
+                .unwrap()
+                .remove(&params.text_document.uri);
         }
         self.client
             .publish_diagnostics(params.text_document.uri, Vec::new(), None)
@@ -391,7 +397,11 @@ impl LanguageServer for Backend {
         let mut symbols = Vec::new();
         for (name, value) in parsed.headers.iter() {
             let truncated: String = value.chars().take(30).collect();
-            let suffix = if value.chars().count() > 30 { "..." } else { "" };
+            let suffix = if value.chars().count() > 30 {
+                "..."
+            } else {
+                ""
+            };
             #[allow(deprecated)]
             symbols.push(DocumentSymbol {
                 name: format!("{name}: {truncated}{suffix}"),
@@ -417,7 +427,13 @@ impl LanguageServer for Backend {
         let mut actions: Vec<CodeActionOrCommand> = Vec::new();
 
         // Shift-notes actions are always offered for any open GABC document.
-        if let Some(text) = { self.documents.lock().unwrap().get(&params.text_document.uri).cloned() } {
+        if let Some(text) = {
+            self.documents
+                .lock()
+                .unwrap()
+                .get(&params.text_document.uri)
+                .cloned()
+        } {
             let is_selection = params.range.start != params.range.end;
             let byte_range = if is_selection {
                 lsp_range_to_byte_range(&text, params.range)
@@ -428,10 +444,10 @@ impl LanguageServer for Backend {
             for &dir in &[ShiftDirection::Up, ShiftDirection::Down] {
                 let new_text = shift_notes(&text, dir, byte_range.clone());
                 let title = match (dir, is_selection) {
-                    (ShiftDirection::Up, false)   => "Shift all notes up",
-                    (ShiftDirection::Up, true)    => "Shift selected notes up",
+                    (ShiftDirection::Up, false) => "Shift all notes up",
+                    (ShiftDirection::Up, true) => "Shift selected notes up",
                     (ShiftDirection::Down, false) => "Shift all notes down",
-                    (ShiftDirection::Down, true)  => "Shift selected notes down",
+                    (ShiftDirection::Down, true) => "Shift selected notes down",
                 };
                 let (end_line, end_col) = doc_end(&text);
                 let full_range = Range {
@@ -441,7 +457,10 @@ impl LanguageServer for Backend {
                 let mut changes = std::collections::HashMap::new();
                 changes.insert(
                     params.text_document.uri.clone(),
-                    vec![TextEdit { range: full_range, new_text }],
+                    vec![TextEdit {
+                        range: full_range,
+                        new_text,
+                    }],
                 );
                 actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                     title: title.to_string(),
@@ -472,7 +491,10 @@ impl LanguageServer for Backend {
                 let mut changes = std::collections::HashMap::new();
                 changes.insert(
                     params.text_document.uri.clone(),
-                    vec![TextEdit { range: full_range, new_text: filled_text }],
+                    vec![TextEdit {
+                        range: full_range,
+                        new_text: filled_text,
+                    }],
                 );
                 actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                     title: title.to_string(),
@@ -528,7 +550,11 @@ impl LanguageServer for Backend {
                 ..Default::default()
             }));
         }
-        Ok(if actions.is_empty() { None } else { Some(actions) })
+        Ok(if actions.is_empty() {
+            None
+        } else {
+            Some(actions)
+        })
     }
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
         let arg = params.arguments.first().and_then(|v| v.as_object());
@@ -542,12 +568,13 @@ impl LanguageServer for Backend {
                 data: None,
             })?;
 
-        let text = { self.documents.lock().unwrap().get(&uri).cloned() }
-            .ok_or_else(|| tower_lsp::jsonrpc::Error {
+        let text = { self.documents.lock().unwrap().get(&uri).cloned() }.ok_or_else(|| {
+            tower_lsp::jsonrpc::Error {
                 code: tower_lsp::jsonrpc::ErrorCode::InvalidParams,
                 message: "Document not open in server".into(),
                 data: None,
-            })?;
+            }
+        })?;
 
         // Optional selection range carried in the argument.
         let byte_range = arg.and_then(|a| {
@@ -560,12 +587,16 @@ impl LanguageServer for Backend {
                 start: Position::new(sl, sc),
                 end: Position::new(el, ec),
             };
-            if lsp_range.start == lsp_range.end { None } else { lsp_range_to_byte_range(&text, lsp_range) }
+            if lsp_range.start == lsp_range.end {
+                None
+            } else {
+                lsp_range_to_byte_range(&text, lsp_range)
+            }
         });
 
         let new_text = match params.command.as_str() {
-            "gregorio/shiftNotesUp"    => shift_notes(&text, ShiftDirection::Up, byte_range),
-            "gregorio/shiftNotesDown"  => shift_notes(&text, ShiftDirection::Down, byte_range),
+            "gregorio/shiftNotesUp" => shift_notes(&text, ShiftDirection::Up, byte_range),
+            "gregorio/shiftNotesDown" => shift_notes(&text, ShiftDirection::Down, byte_range),
             "gregorio/fillEmptyGroups" => fill_empty_groups(&text, byte_range),
             _ => return Ok(None),
         };
@@ -580,9 +611,18 @@ impl LanguageServer for Backend {
             end: Position::new(end_line, end_col),
         };
         let mut changes = std::collections::HashMap::new();
-        changes.insert(uri, vec![TextEdit { range: full_range, new_text }]);
+        changes.insert(
+            uri,
+            vec![TextEdit {
+                range: full_range,
+                new_text,
+            }],
+        );
         self.client
-            .apply_edit(WorkspaceEdit { changes: Some(changes), ..Default::default() })
+            .apply_edit(WorkspaceEdit {
+                changes: Some(changes),
+                ..Default::default()
+            })
             .await?;
 
         Ok(None)
@@ -598,7 +638,11 @@ async fn main() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-fn apply_lsp_change(text: &str, range: tower_lsp::lsp_types::Range, replacement: &str) -> Option<String> {
+fn apply_lsp_change(
+    text: &str,
+    range: tower_lsp::lsp_types::Range,
+    replacement: &str,
+) -> Option<String> {
     let start = byte_offset(text, range.start)?;
     let end = byte_offset(text, range.end)?;
     let mut out = String::with_capacity(text.len() - (end - start) + replacement.len());

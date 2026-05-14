@@ -5,7 +5,9 @@ use gregorio_lsp::parser::types::*;
 
 #[test]
 fn parses_basic_glyph_codes() {
-    for code in ["vi", "pu", "cl", "pe", "po", "to", "ci", "sc", "or", "sa", "ql"] {
+    for code in [
+        "vi", "pu", "cl", "pe", "po", "to", "ci", "sc", "or", "sa", "ql",
+    ] {
         let d = parse_nabc_snippet(code, None).expect("descriptor");
         assert_eq!(d.basic_glyph.code(), code);
     }

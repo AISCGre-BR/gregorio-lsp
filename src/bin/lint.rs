@@ -131,7 +131,11 @@ fn run_text(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
             }
         }
     }
-    if had_error { ExitCode::from(1) } else { ExitCode::SUCCESS }
+    if had_error {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn report_text(label: &str, text: &str, opts: &LintOptions) -> bool {
@@ -239,9 +243,16 @@ fn run_json(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
         }
     });
 
-    println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output).unwrap_or_default()
+    );
 
-    if had_error { ExitCode::from(1) } else { ExitCode::SUCCESS }
+    if had_error {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 // ── Fix mode ──────────────────────────────────────────────────────────────────
@@ -319,7 +330,8 @@ fn apply_fixes(text: &str, diags: &[gregorio_lsp::parser::types::ParseError]) ->
     // Sort in reverse order (end-of-file first) so each replacement doesn't shift
     // the byte offsets of subsequent (earlier) replacements.
     fixes.sort_by(|(r1, _), (r2, _)| {
-        r2.start.line
+        r2.start
+            .line
             .cmp(&r1.start.line)
             .then(r2.start.character.cmp(&r1.start.character))
     });

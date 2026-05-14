@@ -56,7 +56,10 @@ fn parses_punctum_inclinatum_uppercase() {
     let text = "name: Test;\n%%\n(c4) ad(GFE)";
     let doc = parse(text);
     let group = &doc.notation.syllables[1].notes[0];
-    assert!(group.notes.iter().all(|n| n.shape == NoteShape::PunctumInclinatum));
+    assert!(group
+        .notes
+        .iter()
+        .all(|n| n.shape == NoteShape::PunctumInclinatum));
     assert_eq!(group.notes.len(), 3);
 }
 
@@ -73,10 +76,10 @@ fn parses_note_with_modifiers() {
     let text = "name: Test;\n%%\n(c4) test(f.)";
     let doc = parse(text);
     let group = &doc.notation.syllables[1].notes[0];
-    assert!(group
-        .notes
+    assert!(group.notes.iter().any(|n| n
+        .modifiers
         .iter()
-        .any(|n| n.modifiers.iter().any(|m| m.kind == ModifierType::PunctumMora)));
+        .any(|m| m.kind == ModifierType::PunctumMora)));
 }
 
 #[test]

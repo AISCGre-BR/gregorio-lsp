@@ -2,9 +2,9 @@
 
 use crate::parser::types::{ParseError, Severity};
 use crate::parser::GabcParser;
-use crate::validation::{analyze_semantics, DocumentValidator};
 #[cfg(feature = "tree-sitter")]
 use crate::tree_sitter_integration::TreeSitterParser;
+use crate::validation::{analyze_semantics, DocumentValidator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LintSeverity {
@@ -32,7 +32,6 @@ impl LintSeverity {
         })
     }
 }
-
 
 fn severity_level(s: Severity) -> u8 {
     match s {
@@ -66,10 +65,7 @@ pub fn lint_gabc_text(text: &str, options: &LintOptions) -> Vec<ParseError> {
         }
     }
 
-    let min_level = options
-        .min_severity
-        .unwrap_or(LintSeverity::Info)
-        .level();
+    let min_level = options.min_severity.unwrap_or(LintSeverity::Info).level();
     let ignore: std::collections::HashSet<&str> =
         options.ignore_codes.iter().map(|s| s.as_str()).collect();
 

@@ -142,7 +142,10 @@ fn test_parse_nabc_lines_zero() {
 fn test_shift_notes_preserves_headers() {
     let text = "name: Kyrie;\nmode: 1;\n%%\n(c4) ge(f)\n";
     let result = shift_notes(text, ShiftDirection::Up, None);
-    assert!(result.starts_with("name: Kyrie;\nmode: 1;\n%%\n"), "Headers changed: {result}");
+    assert!(
+        result.starts_with("name: Kyrie;\nmode: 1;\n%%\n"),
+        "Headers changed: {result}"
+    );
 }
 
 #[test]
@@ -203,7 +206,10 @@ fn test_shift_notes_preserves_nabc_simple() {
     let text = "%%\na(fg|nabc)b(h)\n";
     let result = shift_notes(text, ShiftDirection::Up, None);
     assert!(result.contains("|nabc)"), "NABC segment changed: {result}");
-    assert!(result.contains("(gh|nabc)"), "GABC notes not shifted: {result}");
+    assert!(
+        result.contains("(gh|nabc)"),
+        "GABC notes not shifted: {result}"
+    );
     assert!(result.contains("(i)"), "Note not shifted: {result}");
 }
 
@@ -307,7 +313,10 @@ fn test_shift_notes_byte_range_first_group_only() {
     let text = "%%\n(fg)(hi)\n";
     let result = shift_notes(text, ShiftDirection::Up, Some(3..7));
     assert!(result.contains("(gh)"), "First group not shifted: {result}");
-    assert!(result.contains("(hi)"), "Second group incorrectly shifted: {result}");
+    assert!(
+        result.contains("(hi)"),
+        "Second group incorrectly shifted: {result}"
+    );
 }
 
 #[test]
@@ -315,8 +324,14 @@ fn test_shift_notes_byte_range_second_group_only() {
     let text = "%%\n(fg)(hi)\n";
     // "(hi)" starts at byte 7
     let result = shift_notes(text, ShiftDirection::Up, Some(7..11));
-    assert!(result.contains("(fg)"), "First group incorrectly shifted: {result}");
-    assert!(result.contains("(ij)"), "Second group not shifted: {result}");
+    assert!(
+        result.contains("(fg)"),
+        "First group incorrectly shifted: {result}"
+    );
+    assert!(
+        result.contains("(ij)"),
+        "Second group not shifted: {result}"
+    );
 }
 
 #[test]
@@ -324,7 +339,10 @@ fn test_shift_notes_no_range_shifts_all() {
     let text = "%%\n(fg)(hi)\n";
     let result = shift_notes(text, ShiftDirection::Up, None);
     assert!(result.contains("(gh)"), "First group not shifted: {result}");
-    assert!(result.contains("(ij)"), "Second group not shifted: {result}");
+    assert!(
+        result.contains("(ij)"),
+        "Second group not shifted: {result}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -389,7 +407,10 @@ fn test_fill_no_empty_groups_unchanged() {
 fn test_fill_preserves_headers() {
     let text = "name: Kyrie;\nmode: 1;\n%%\n(fg) ()\n";
     let result = fill_empty_groups(text, None);
-    assert!(result.starts_with("name: Kyrie;\nmode: 1;\n%%\n"), "Headers changed: {result}");
+    assert!(
+        result.starts_with("name: Kyrie;\nmode: 1;\n%%\n"),
+        "Headers changed: {result}"
+    );
 }
 
 #[test]
@@ -429,8 +450,7 @@ fn test_fill_multi_nabc_seed() {
     let text = "nabc-lines: 2;\n%%\n(fgh|pu|ta) () (ij|vi|pe) ()\n";
     let result = fill_empty_groups(text, None);
     assert_eq!(
-        result,
-        "nabc-lines: 2;\n%%\n(fgh|pu|ta) (h) (ij|vi|pe) (j)\n",
+        result, "nabc-lines: 2;\n%%\n(fgh|pu|ta) (h) (ij|vi|pe) (j)\n",
         "Got: {result}"
     );
 }

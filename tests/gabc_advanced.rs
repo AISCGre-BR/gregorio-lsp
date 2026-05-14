@@ -12,10 +12,10 @@ fn parses_oriscus_lowercase_o() {
     let doc = parse("name: T;\n%%\n(c4) test(fo)");
     let group = &doc.notation.syllables[1].notes[0];
     assert_eq!(group.notes[0].shape, NoteShape::Oriscus);
-    assert!(!group
-        .notes
+    assert!(!group.notes.iter().any(|n| n
+        .modifiers
         .iter()
-        .any(|n| n.modifiers.iter().any(|m| m.kind == ModifierType::OriscusScapus)));
+        .any(|m| m.kind == ModifierType::OriscusScapus)));
 }
 
 #[test]
@@ -96,7 +96,9 @@ fn parses_bar_double() {
         .iter()
         .filter_map(|s| s.bar.as_ref())
         .collect();
-    assert!(bars.iter().any(|b| matches!(b.kind, BarType::DivisioFinalis)));
+    assert!(bars
+        .iter()
+        .any(|b| matches!(b.kind, BarType::DivisioFinalis)));
 }
 
 #[test]

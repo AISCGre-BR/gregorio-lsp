@@ -23,10 +23,7 @@ fn parses_kyrie_xvi() {
     let text = read_example("kyrie-xvi.gabc");
     let doc = GabcParser::new(&text).parse();
     assert!(doc.headers.get("name").is_some(), "name header parsed");
-    assert!(
-        !doc.notation.syllables.is_empty(),
-        "syllables collected"
-    );
+    assert!(!doc.notation.syllables.is_empty(), "syllables collected");
     let parser_errors: Vec<_> = doc
         .errors
         .iter()

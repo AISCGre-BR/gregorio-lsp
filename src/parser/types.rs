@@ -111,6 +111,9 @@ pub struct ParsedDocument {
 pub struct HeaderMap {
     entries: Vec<(String, String)>,
     index: BTreeMap<String, usize>,
+    /// Keys that were inserted more than once (one entry per overwrite, in insertion order).
+    /// Use to detect duplicate header definitions.
+    pub duplicate_keys: Vec<String>,
 }
 
 impl HeaderMap {
@@ -123,6 +126,7 @@ impl HeaderMap {
         let val = value.into();
         if let Some(&idx) = self.index.get(&key) {
             self.entries[idx].1 = val;
+            self.duplicate_keys.push(key);
         } else {
             self.index.insert(key.clone(), self.entries.len());
             self.entries.push((key, val));
@@ -161,6 +165,8 @@ pub struct NotationSection {
 pub struct Syllable {
     pub text: String,
     pub text_with_styles: Option<String>,
+    /// Range covering only the syllable text (before the opening `(`).
+    pub text_range: Range,
     pub notes: Vec<NoteGroup>,
     pub range: Range,
     pub clef: Option<Clef>,
@@ -413,23 +419,49 @@ impl NabcBasicGlyph {
     pub fn all() -> &'static [NabcBasicGlyph] {
         use NabcBasicGlyph::*;
         &[
-            Virga, Punctum, Tractulus, Gravis, Clivis, Pes, Porrectus, Torculus, Climacus,
-            Scandicus, PorrectusFlexus, ScandicusFlexus, TorculusResupinus, Stropha, Distropha,
-            Tristropha, Trigonus, Bivirga, Trivirga, PressusMainor, PressusMinor, VirgaStrata,
-            Oriscus, Salicus, PesQuassus, Quilisma3Loops, Quilisma2Loops, PesStratus, Nihil,
-            Uncinus, OriscusClivis,
+            Virga,
+            Punctum,
+            Tractulus,
+            Gravis,
+            Clivis,
+            Pes,
+            Porrectus,
+            Torculus,
+            Climacus,
+            Scandicus,
+            PorrectusFlexus,
+            ScandicusFlexus,
+            TorculusResupinus,
+            Stropha,
+            Distropha,
+            Tristropha,
+            Trigonus,
+            Bivirga,
+            Trivirga,
+            PressusMainor,
+            PressusMinor,
+            VirgaStrata,
+            Oriscus,
+            Salicus,
+            PesQuassus,
+            Quilisma3Loops,
+            Quilisma2Loops,
+            PesStratus,
+            Nihil,
+            Uncinus,
+            OriscusClivis,
         ]
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NabcGlyphModifier {
-    MarkModification,        // S
-    GroupingModification,    // G
-    MelodicModification,     // M
-    Episema,                 // -
-    AugmentiveLiquescence,   // >
-    DiminutiveLiquescence,   // ~
+    MarkModification,      // S
+    GroupingModification,  // G
+    MelodicModification,   // M
+    Episema,               // -
+    AugmentiveLiquescence, // >
+    DiminutiveLiquescence, // ~
 }
 
 impl NabcGlyphModifier {

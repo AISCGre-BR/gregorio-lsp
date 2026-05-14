@@ -168,6 +168,7 @@ impl<'a> GabcParser<'a> {
                         plain_text
                     },
                     text_with_styles: with_styles,
+                    text_range: Range::new(text_start, text_end),
                     notes: Vec::new(),
                     range: Range::new(text_start, text_end),
                     clef: None,
@@ -264,6 +265,7 @@ impl<'a> GabcParser<'a> {
                 plain_text
             },
             text_with_styles: with_styles,
+            text_range: Range::new(text_start, text_end),
             notes,
             range: Range::new(text_start, end),
             clef,
@@ -676,10 +678,8 @@ fn parse_note_group(
                 }
             }
 
-            let note_end = Position::new(
-                note_start.line,
-                note_start.character + (i - note_start_idx),
-            );
+            let note_end =
+                Position::new(note_start.line, note_start.character + (i - note_start_idx));
             notes.push(Note {
                 pitch,
                 shape,

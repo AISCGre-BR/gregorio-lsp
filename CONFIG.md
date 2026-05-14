@@ -28,6 +28,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | Code | Severity | Description |
 |---|---|---|
 | `name-header` | Warning | Missing or empty `name` header |
+| `duplicate-headers` | Warning | A header key defined more than once (`annotation` allows 2) |
 | `first-syllable-line-break` | Error | Line break on the first syllable |
 | `first-syllable-clef-change` | Error | Clef change on the first syllable |
 | `nabc-without-header` | Error | NABC pipe `\|` without `nabc-lines` header |
@@ -39,6 +40,11 @@ Known rule codes (use any of these in `ignoreRules`):
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |
 | `multi-word-syllable` | Warning | Multiple space-separated words share a single note group; auto-fixable to `word1() word2(notes)` |
 | `line-break-at-end-of-score` | Warning | Forced line break (`z`/`Z` and variants) at end of score is ignored by GregorioTeX; auto-fixable by removing it |
+| `duplicate-syllable-center` | Warning | Syllable text contains multiple `{…}` forced-center markers; only the first is used |
+| `center-after-protrusion` | Warning | Forced center `{…}` appears after a `<pr>` protrusion; the center will be ignored |
+| `unmatched-center-close` | Warning | `}` without a matching `{` in syllable text; auto-fixable by removing the stray `}` |
+| `duplicate-protrusion` | Warning | More than one `<pr>` protrusion tag in a syllable; only the first is used; auto-fixable |
+| `unclosed-center-before-protrusion` | Warning | `{` is still open when a `<pr>` protrusion is encountered; auto-fixable by inserting `}` before the protrusion |
 | `pes-quadratum-missing-note` | Warning | `q` modifier requires a subsequent note |
 | `quilisma-missing-note` | Warning | Quilisma requires a subsequent note |
 | `oriscus-scapus-isolated` | Warning | `O` requires both a preceding and a subsequent note |

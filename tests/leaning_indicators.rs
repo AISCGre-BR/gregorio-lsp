@@ -40,7 +40,10 @@ fn mixed_leaning_in_climacus() {
     // GFE with mixed indicators: G1 ascending, F0 unforced, E2 descending
     let g = first_group("name: T;\n%%\n(c4) test(G1F0E2)");
     assert_eq!(g.notes.len(), 3);
-    assert!(g.notes.iter().all(|n| n.shape == NoteShape::PunctumInclinatum));
+    assert!(g
+        .notes
+        .iter()
+        .all(|n| n.shape == NoteShape::PunctumInclinatum));
     assert_eq!(g.notes[0].pitch, 'g');
     assert_eq!(g.notes[1].pitch, 'f');
     assert_eq!(g.notes[2].pitch, 'e');

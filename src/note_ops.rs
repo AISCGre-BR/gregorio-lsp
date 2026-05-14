@@ -131,7 +131,14 @@ pub fn shift_notes(
         result.push('(');
         i += 1;
 
-        shift_group(&chars, &mut i, &mut result, dir, byte_range.as_ref(), nabc_lines);
+        shift_group(
+            &chars,
+            &mut i,
+            &mut result,
+            dir,
+            byte_range.as_ref(),
+            nabc_lines,
+        );
 
         // Closing parenthesis.
         if i < n && chars[i].1 == ')' {
@@ -246,10 +253,7 @@ pub fn parse_nabc_lines(text: &str) -> usize {
 ///
 /// If `byte_range` is `None`, all empty groups in the music section are
 /// filled.
-pub fn fill_empty_groups(
-    text: &str,
-    byte_range: Option<std::ops::Range<usize>>,
-) -> String {
+pub fn fill_empty_groups(text: &str, byte_range: Option<std::ops::Range<usize>>) -> String {
     let nabc_lines = parse_nabc_lines(text);
     let mut result = String::with_capacity(text.len());
     let chars: Vec<(usize, char)> = text.char_indices().collect();
@@ -398,7 +402,11 @@ fn last_gabc_pitch_in_group(
             j += 1;
             continue;
         }
-        let is_gabc = if nabc_lines == 0 { seg == 0 } else { seg % period == 0 };
+        let is_gabc = if nabc_lines == 0 {
+            seg == 0
+        } else {
+            seg % period == 0
+        };
         if is_gabc && is_gabc_pitch(c) {
             last = Some(c);
         }
