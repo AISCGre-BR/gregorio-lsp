@@ -19,9 +19,10 @@ fn print_help() {
 \n\
 USAGE:\n    gregolint [OPTIONS] [FILES...]\n\
 \n\
-OPTIONS:\n    -s, --severity <error|warning|info>  Minimum severity to report (default: info)\n    -i, --ignore <code>                   Ignore a diagnostic code (repeatable)\n    -f, --format <text|json>              Output format (default: text)\n    -h, --help                            Print help\n    -V, --version                         Print version\n\
+OPTIONS:\n    -s, --severity <error|warning|info>  Minimum severity to report (default: info)\n    -i, --ignore <code>                   Ignore a diagnostic code (repeatable)\n    -f, --format <text|json>              Output format (default: text)\n        --fix                             Apply auto-fixable diagnostics in-place\n    -h, --help                            Print help\n    -V, --version                         Print version\n\
 \n\
-If no FILES are given, reads GABC from stdin.",
+If no FILES are given, reads GABC from stdin.\n\
+When --fix is used with stdin, the fixed output is written to stdout.",
         env!("CARGO_PKG_VERSION")
     );
 }
@@ -32,6 +33,7 @@ fn main() -> ExitCode {
     let mut min_severity: Option<LintSeverity> = None;
     let mut ignore_codes: Vec<String> = Vec::new();
     let mut format = OutputFormat::Text;
+    let mut fix_mode = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -43,6 +45,7 @@ fn main() -> ExitCode {
                 println!("gregolint {}", env!("CARGO_PKG_VERSION"));
                 return ExitCode::SUCCESS;
             }
+            "--fix" => fix_mode = true,
             "-s" | "--severity" => match args.next() {
                 Some(s) => match LintSeverity::parse(&s) {
                     Some(sev) => min_severity = Some(sev),
@@ -83,6 +86,10 @@ fn main() -> ExitCode {
             }
             other => files.push(PathBuf::from(other)),
         }
+    }
+
+    if fix_mode {
+        return run_fix(&files);
     }
 
     let opts = LintOptions {
@@ -235,4 +242,97 @@ fn run_json(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
     println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
 
     if had_error { ExitCode::from(1) } else { ExitCode::SUCCESS }
+}
+
+// ── Fix mode ──────────────────────────────────────────────────────────────────
+
+fn run_fix(files: &[PathBuf]) -> ExitCode {
+    let fix_opts = LintOptions {
+        min_severity: Some(LintSeverity::Info),
+        ignore_codes: Vec::new(),
+    };
+
+    if files.is_empty() {
+        let mut buf = String::new();
+        if let Err(e) = io::stdin().read_to_string(&mut buf) {
+            eprintln!("error reading stdin: {e}");
+            return ExitCode::from(2);
+        }
+        let fixed = apply_fixes(&buf, &lint_gabc_text(&buf, &fix_opts));
+        print!("{fixed}");
+        return ExitCode::SUCCESS;
+    }
+
+    for file in files {
+        let text = match std::fs::read_to_string(file) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("error reading {}: {e}", file.display());
+                return ExitCode::from(2);
+            }
+        };
+        let diags = lint_gabc_text(&text, &fix_opts);
+        let fixed = apply_fixes(&text, &diags);
+        if fixed != text {
+            if let Err(e) = std::fs::write(file, &fixed) {
+                eprintln!("error writing {}: {e}", file.display());
+                return ExitCode::from(2);
+            }
+            eprintln!("fixed: {}", file.display());
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// Convert a (line, character) position to a byte offset in `text`.
+/// Both line and character are 0-based; character is counted in Unicode code points.
+fn byte_offset(text: &str, line: usize, character: usize) -> Option<usize> {
+    let mut cur_line = 0usize;
+    let mut cur_char = 0usize;
+    for (idx, ch) in text.char_indices() {
+        if cur_line == line && cur_char == character {
+            return Some(idx);
+        }
+        if ch == '\n' {
+            cur_line += 1;
+            cur_char = 0;
+        } else if cur_line == line {
+            cur_char += 1;
+        }
+    }
+    if cur_line == line && cur_char == character {
+        return Some(text.len());
+    }
+    None
+}
+
+/// Apply all auto-fixes from `diags` to `text`, returning the modified string.
+/// Fixes are applied from end to start so that earlier positions remain valid.
+fn apply_fixes(text: &str, diags: &[gregorio_lsp::parser::types::ParseError]) -> String {
+    use gregorio_lsp::parser::types::Range;
+
+    let mut fixes: Vec<(Range, &str)> = diags
+        .iter()
+        .filter_map(|d| d.fix.as_ref().map(|f| (f.range, f.new_text.as_str())))
+        .collect();
+
+    // Sort in reverse order (end-of-file first) so each replacement doesn't shift
+    // the byte offsets of subsequent (earlier) replacements.
+    fixes.sort_by(|(r1, _), (r2, _)| {
+        r2.start.line
+            .cmp(&r1.start.line)
+            .then(r2.start.character.cmp(&r1.start.character))
+    });
+
+    let mut result = text.to_string();
+    for (range, new_text) in fixes {
+        let Some(start) = byte_offset(&result, range.start.line, range.start.character) else {
+            continue;
+        };
+        let Some(end) = byte_offset(&result, range.end.line, range.end.character) else {
+            continue;
+        };
+        result = format!("{}{}{}", &result[..start], new_text, &result[end..]);
+    }
+    result
 }

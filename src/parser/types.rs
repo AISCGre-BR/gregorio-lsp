@@ -50,12 +50,23 @@ impl Severity {
     }
 }
 
+/// A suggested text replacement for an auto-fixable diagnostic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextFix {
+    /// The range in the source document to replace.
+    pub range: Range,
+    /// The replacement text.
+    pub new_text: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     pub message: String,
     pub range: Range,
     pub severity: Severity,
     pub code: Option<String>,
+    /// Optional auto-fix: a single text replacement that resolves the diagnostic.
+    pub fix: Option<TextFix>,
 }
 
 impl ParseError {
@@ -65,11 +76,17 @@ impl ParseError {
             range,
             severity,
             code: None,
+            fix: None,
         }
     }
 
     pub fn with_code(mut self, code: impl Into<String>) -> Self {
         self.code = Some(code.into());
+        self
+    }
+
+    pub fn with_fix(mut self, fix: TextFix) -> Self {
+        self.fix = Some(fix);
         self
     }
 }

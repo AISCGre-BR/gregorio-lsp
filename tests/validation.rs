@@ -91,3 +91,43 @@ fn lint_min_severity_filters_info() {
         || warnings.iter().all(|d| d.severity != Severity::Info));
     assert!(warnings.iter().all(|d| d.severity != Severity::Info));
 }
+
+#[test]
+fn multi_word_syllable_empty_note_group_warning() {
+    // "foo bar baz()" — three words sharing one empty note group
+    let text = "name: Test;\n%%\n(c4) foo bar baz()";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("multi-word-syllable"))
+        .expect("expected multi-word-syllable diagnostic");
+    assert_eq!(d.severity, Severity::Warning);
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "foo() bar() baz()");
+}
+
+#[test]
+fn multi_word_syllable_with_notes_fix_text() {
+    // "foo bar(gh)" — two words, last carries actual notes
+    let text = "name: Test;\n%%\n(c4) foo bar(gh)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("multi-word-syllable"))
+        .expect("expected multi-word-syllable diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "foo() bar(gh)");
+}
+
+#[test]
+fn multi_word_syllable_no_false_positive_on_separate_groups() {
+    // Each word already has its own note group — no diagnostic expected
+    let text = "name: Test;\n%%\n(c4) foo(gh) bar(e) baz(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("multi-word-syllable")),
+        "unexpected multi-word-syllable diagnostic on well-formed input"
+    );
+}

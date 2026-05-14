@@ -83,6 +83,17 @@ fn to_diagnostic(err: gregorio_lsp::parser::types::ParseError) -> Diagnostic {
         PSeverity::Warning => DiagnosticSeverity::WARNING,
         PSeverity::Info => DiagnosticSeverity::INFORMATION,
     };
+    let data = err.fix.map(|fix| {
+        serde_json::json!({
+            "fix": {
+                "start_line": fix.range.start.line,
+                "start_character": fix.range.start.character,
+                "end_line": fix.range.end.line,
+                "end_character": fix.range.end.character,
+                "new_text": fix.new_text
+            }
+        })
+    });
     Diagnostic {
         range: Range {
             start: Position::new(err.range.start.line as u32, err.range.start.character as u32),
@@ -95,7 +106,7 @@ fn to_diagnostic(err: gregorio_lsp::parser::types::ParseError) -> Diagnostic {
         message: err.message,
         related_information: None,
         tags: None,
-        data: None,
+        data,
     }
 }
 
@@ -122,6 +133,13 @@ impl LanguageServer for Backend {
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        resolve_provider: Some(false),
+                        work_done_progress_options: Default::default(),
+                    },
+                )),
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
@@ -381,6 +399,51 @@ impl LanguageServer for Backend {
             });
         }
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+    }
+
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+        for diag in &params.context.diagnostics {
+            let Some(data) = diag.data.as_ref() else {
+                continue;
+            };
+            let Some(fix) = data.get("fix") else {
+                continue;
+            };
+            let (Some(sl), Some(sc), Some(el), Some(ec), Some(new_text)) = (
+                fix["start_line"].as_u64(),
+                fix["start_character"].as_u64(),
+                fix["end_line"].as_u64(),
+                fix["end_character"].as_u64(),
+                fix["new_text"].as_str(),
+            ) else {
+                continue;
+            };
+            let edit_range = Range {
+                start: Position::new(sl as u32, sc as u32),
+                end: Position::new(el as u32, ec as u32),
+            };
+            let mut changes = std::collections::HashMap::new();
+            changes.insert(
+                params.text_document.uri.clone(),
+                vec![TextEdit {
+                    range: edit_range,
+                    new_text: new_text.to_string(),
+                }],
+            );
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                title: "Split into individual note groups".into(),
+                kind: Some(CodeActionKind::QUICKFIX),
+                diagnostics: Some(vec![diag.clone()]),
+                edit: Some(WorkspaceEdit {
+                    changes: Some(changes),
+                    ..Default::default()
+                }),
+                is_preferred: Some(true),
+                ..Default::default()
+            }));
+        }
+        Ok(if actions.is_empty() { None } else { Some(actions) })
     }
 }
 

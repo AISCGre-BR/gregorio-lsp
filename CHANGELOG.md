@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- New validation rule `multi-word-syllable` (Warning): flags syllables like
+  `foo bar baz()` where multiple space-separated words share a single note group.
+  The diagnostic carries an auto-fix that rewrites the text to
+  `foo() bar() baz()` (individual note group per word).
+- `TextFix { range, new_text }` field on `ParseError` — enables auto-fix metadata
+  throughout the lint pipeline.
+- LSP code action support: `textDocument/codeAction` returns a preferred Quick Fix
+  for any diagnostic that carries a `TextFix`, using `Diagnostic.data` to pass the
+  fix information from server to client.
+- `gregolint --fix` flag: applies all auto-fixable diagnostics in-place (or to
+  stdout when reading from stdin), enabling use in pre-commit hooks and CI pipelines.
+
 ## [0.3.0] - 2026-05-04
 
 ### Added

@@ -24,6 +24,7 @@ impl SemanticError {
             range: self.range,
             severity: self.severity,
             code: Some(self.code.clone()),
+            fix: None,
         }
     }
 }
