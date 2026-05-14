@@ -21,7 +21,7 @@ Gregorian chant in LaTeX.
 The server provides real-time diagnostics, completions, hover, and document symbols for
 `.gabc` files in any LSP-compatible editor (Helix, Neovim, VS Code, etc.).
 
-It also ships a standalone CLI linter (`gregolint`) for use in CI pipelines and
+It also ships a standalone CLI linter (`grelint`) for use in CI pipelines and
 pre-commit hooks.
 
 **Companion project:**
@@ -62,7 +62,7 @@ src/
     validator.rs        ← DocumentValidator — orchestrates rules + parser errors
   bin/
     server.rs           ← LSP server binary (tower-lsp + tokio, ~500 lines)
-    lint.rs             ← gregolint CLI binary (~200 lines)
+    lint.rs             ← grelint CLI binary (~200 lines)
 
 tests/
   corpus.rs             ← Integration corpus tests
@@ -152,7 +152,7 @@ Do NOT introduce any `tree-sitter` imports outside `tree_sitter_integration.rs`.
 |---|---|---|
 | `lib` (`gregorio_lsp`) | `src/lib.rs` | Public API for third-party consumers |
 | `bin` (`gregorio-lsp`) | `src/bin/server.rs` | LSP stdio server |
-| `bin` (`gregolint`) | `src/bin/lint.rs` | CLI linter |
+| `bin` (`grelint`) | `src/bin/lint.rs` | CLI linter |
 
 The library re-exports everything a consumer needs. The binaries are thin wrappers
 that call into the library.
@@ -377,7 +377,7 @@ When adding a new rule, add its code to `CONFIG.md`.
 ### 9.1 Interface
 
 ```
-gregolint [OPTIONS] [FILE…]
+grelint [OPTIONS] [FILE…]
 
 Options:
   -s, --severity <error|warning|info>   Minimum severity (default: info)
@@ -401,7 +401,7 @@ Columns are 1-based in the CLI output (convert from 0-based `Position.character 
 **JSON format** (`-f json`):
 ```json
 {
-  "tool": "gregolint",
+  "tool": "grelint",
   "diagnostics": [
     {
       "file": "path/to/file.gabc",
@@ -409,7 +409,7 @@ Columns are 1-based in the CLI output (convert from 0-based `Position.character 
       "code": "rule-code",
       "message": "...",
       "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 0, "character": 0 } },
-      "source": "gregolint"
+      "source": "grelint"
     }
   ],
   "skipped": [],
@@ -560,7 +560,7 @@ For tree-sitter integration tests, gate them behind `#[cfg(feature = "tree-sitte
     analyser tracks `prev_syllable: Option<&Syllable>`. Never assume the previous
     note is in the same syllable.
 
-12. **Exit code 1 vs. 2 in `gregolint`**: Exit code `1` means linting found errors;
+12. **Exit code 1 vs. 2 in `grelint`**: Exit code `1` means linting found errors;
     exit code `2` means the CLI itself could not run (bad arguments, unreadable file).
     Do not confuse the two.
 

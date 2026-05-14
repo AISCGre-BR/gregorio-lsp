@@ -1,4 +1,4 @@
-//! `gregolint` CLI: lint one or more GABC files (or stdin) and print diagnostics.
+//! `grelint` CLI: lint one or more GABC files (or stdin) and print diagnostics.
 
 use std::io::{self, Read};
 use std::path::PathBuf;
@@ -15,9 +15,9 @@ enum OutputFormat {
 
 fn print_help() {
     eprintln!(
-        "gregolint {} — Gregorio GABC/NABC linter\n\
+        "grelint {} — Gregorio GABC/NABC linter\n\
 \n\
-USAGE:\n    gregolint [OPTIONS] [FILES...]\n\
+USAGE:\n    grelint [OPTIONS] [FILES...]\n\
 \n\
 OPTIONS:\n    -s, --severity <error|warning|info>  Minimum severity to report (default: info)\n    -i, --ignore <code>                   Ignore a diagnostic code (repeatable)\n    -f, --format <text|json>              Output format (default: text)\n        --fix                             Apply auto-fixable diagnostics in-place\n    -h, --help                            Print help\n    -V, --version                         Print version\n\
 \n\
@@ -42,7 +42,7 @@ fn main() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             "-V" | "--version" => {
-                println!("gregolint {}", env!("CARGO_PKG_VERSION"));
+                println!("grelint {}", env!("CARGO_PKG_VERSION"));
                 return ExitCode::SUCCESS;
             }
             "--fix" => fix_mode = true,
@@ -223,7 +223,7 @@ fn run_json(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
                                 "character": d.range.end.character
                             }
                         },
-                        "source": "gregolint"
+                        "source": "grelint"
                     }));
                 }
             }
@@ -231,7 +231,7 @@ fn run_json(files: &[PathBuf], opts: &LintOptions) -> ExitCode {
     }
 
     let output = json!({
-        "tool": "gregolint",
+        "tool": "grelint",
         "diagnostics": all_diags,
         "skipped": skipped,
         "summary": {

@@ -15,7 +15,7 @@ cargo build --release
 Binaries are placed in `target/release/`:
 
 - `gregorio-lsp` — LSP server over stdio.
-- `gregolint` — command-line linter.
+- `grelint` — command-line linter.
 
 To enable the tree-sitter integration:
 
@@ -26,9 +26,9 @@ cargo build --release --features tree-sitter
 ## CLI Lint
 
 ```bash
-gregolint examples/kyrie-xvi.gabc
-gregolint -s warning -i quilisma-missing-connector file.gabc
-cat file.gabc | gregolint -
+grelint examples/kyrie-xvi.gabc
+grelint -s warning -i quilisma-missing-connector file.gabc
+cat file.gabc | grelint -
 ```
 
 Exit codes:

@@ -6,7 +6,7 @@ This is the Rust rewrite of the original TypeScript project, providing the same
 feature set with native binaries:
 
 - `gregorio-lsp` — LSP server over stdio (based on [tower-lsp](https://github.com/ebkalderon/tower-lsp));
-- `gregolint` — CLI linter for GABC files and stdin input.
+- `grelint` — CLI linter for GABC files and stdin input.
 
 ## Features
 
@@ -27,7 +27,7 @@ cargo test
 cargo build --release --features tree-sitter   # enables tree-sitter integration
 ```
 
-Binaries are placed in `target/release/gregorio-lsp` and `target/release/gregolint`.
+Binaries are placed in `target/release/gregorio-lsp` and `target/release/grelint`.
 
 ## LSP Server Usage
 
@@ -47,12 +47,12 @@ Example JSON configuration sent via `workspace/didChangeConfiguration`:
 }
 ```
 
-## `gregolint` CLI Usage
+## `grelint` CLI Usage
 
 ```bash
-gregolint examples/kyrie-xvi.gabc
-gregolint -s warning -i quilisma-missing-connector file.gabc
-cat file.gabc | gregolint -
+grelint examples/kyrie-xvi.gabc
+grelint -s warning -i quilisma-missing-connector file.gabc
+cat file.gabc | grelint -
 ```
 
 Output format: `file:line:column: severity [code] message`. The process exits with
@@ -75,7 +75,7 @@ src/
   tree_sitter_integration.rs   # optional, `tree-sitter` feature
   bin/
     server.rs             # gregorio-lsp binary
-    lint.rs               # gregolint binary
+    lint.rs               # grelint binary
 tests/
   gabc_parser.rs
   nabc_parser.rs

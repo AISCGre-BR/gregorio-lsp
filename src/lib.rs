@@ -1,6 +1,6 @@
 //! Gregorio LSP library: GABC/NABC parsers, validation, semantic analysis, and lint.
 //!
-//! See the binaries `gregorio-lsp` (LSP server) and `gregolint` (CLI linter).
+//! See the binaries `gregorio-lsp` (LSP server) and `grelint` (CLI linter).
 
 pub mod lint;
 pub mod note_ops;

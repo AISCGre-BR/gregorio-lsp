@@ -19,7 +19,7 @@ name = "gregorio-lsp"
 path = "src/bin/server.rs"
 
 [[bin]]
-name = "gregolint"
+name = "grelint"
 path = "src/bin/lint.rs"
 
 [features]
