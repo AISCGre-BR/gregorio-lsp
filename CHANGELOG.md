@@ -19,7 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   more than once in the GABC preamble, mirroring GregorioTeX's warning
   "several %s definitions found". The `annotation` header is excluded from the
   check up to 2 entries (GregorioTeX allows exactly 2 annotations); 3 or more
-  `annotation` headers trigger the warning.
+  `annotation` headers trigger the warning. The `commentary` header is fully
+  exempt: it is an `OTHER_HEADER` in GregorioTeX (not a first-class keyword),
+  all entries are silently appended to the score's header linked list with no
+  duplicate check and no warning at any count.
 - New validation rule `duplicate-syllable-center` (Warning): detects a syllable
   text that contains two or more `{…}` forced-center markers; only the first is
   used by GregorioTeX (W-C05).

@@ -63,35 +63,42 @@ fn duplicate_headers(doc: &ParsedDocument) -> Vec<ParseError> {
         *overwrite_counts.entry(key.as_str()).or_insert(0) += 1;
     }
 
+    // Maximum number of times a header may appear before a warning is emitted.
+    // `usize::MAX` means unlimited (GregorioTeX accepts any count without warning).
+    //
+    // GregorioTeX source (v6.2.0):
+    //   - `annotation`  → stored in `score->annotation[MAX_ANNOTATIONS]` (size 2);
+    //                      third entry triggers "too many definitions of annotation" warning.
+    //   - `commentary`  → is an `OTHER_HEADER` (no dedicated lexer token); all entries
+    //                      are silently appended to the generic `score->headers` linked list
+    //                      with no duplicate check and no warning at any count.
+    //   - all others    → single-value via `check_multiple()`, warns on second definition.
+    let max_allowed = |key: &str| -> usize {
+        match key {
+            "annotation" => 2,
+            "commentary" => usize::MAX,
+            _ => 1,
+        }
+    };
+
     let mut errors = Vec::new();
     for (key, &count) in &overwrite_counts {
-        if *key == "annotation" {
-            // GregorioTeX accepts exactly 2 `annotation:` entries; warn only for 3+.
-            if count >= 2 {
-                errors.push(
-                    ParseError::new(
-                        format!(
-                            "Too many 'annotation' definitions ({}); \
-                             GregorioTeX only uses the first 2.",
-                            count + 1
-                        ),
-                        Range::zero(),
-                        Severity::Warning,
-                    )
-                    .with_code("duplicate-headers"),
-                );
-            }
-        } else {
-            errors.push(
-                ParseError::new(
-                    format!(
-                        "Header '{key}' defined {} time(s); only the last definition is used.",
-                        count + 1
-                    ),
-                    Range::zero(),
-                    Severity::Warning,
+        let total = count + 1; // total insertions = overwrites + 1
+        let max = max_allowed(key);
+        if total > max {
+            let msg = if *key == "annotation" {
+                format!(
+                    "Too many 'annotation' definitions ({total}); \
+                     GregorioTeX only uses the first 2."
                 )
-                .with_code("duplicate-headers"),
+            } else {
+                format!(
+                    "Header '{key}' defined {total} time(s); only the last definition is used."
+                )
+            };
+            errors.push(
+                ParseError::new(msg, Range::zero(), Severity::Warning)
+                    .with_code("duplicate-headers"),
             );
         }
     }

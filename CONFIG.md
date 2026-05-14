@@ -28,7 +28,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | Code | Severity | Description |
 |---|---|---|
 | `name-header` | Warning | Missing or empty `name` header |
-| `duplicate-headers` | Warning | A header key defined more than once (`annotation` allows 2) |
+| `duplicate-headers` | Warning | A header key defined more than once (`annotation` allows 2; `commentary` is unlimited) |
 | `first-syllable-line-break` | Error | Line break on the first syllable |
 | `first-syllable-clef-change` | Error | Clef change on the first syllable |
 | `nabc-without-header` | Error | NABC pipe `\|` without `nabc-lines` header |

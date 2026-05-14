@@ -372,6 +372,36 @@ fn duplicate_headers_warns_on_three_annotations() {
     );
 }
 
+// commentary is an OTHER_HEADER in GregorioTeX — unlimited entries, never warns.
+#[test]
+fn duplicate_headers_allows_multiple_commentary() {
+    let text =
+        "name: Foo;\ncommentary: First line.\ncommentary: Second line.\ncommentary: Third line.\n%%\n(c4) test(f)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-headers")),
+        "multiple commentary headers must not trigger duplicate-headers"
+    );
+}
+
+#[test]
+fn duplicate_headers_warns_on_repeated_name_not_commentary() {
+    let text =
+        "name: Foo;\nname: Bar;\ncommentary: A.\ncommentary: B.\n%%\n(c4) test(f)";
+    let diags = lint(text);
+    let dup: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code.as_deref() == Some("duplicate-headers"))
+        .collect();
+    assert_eq!(dup.len(), 1, "only the duplicate 'name' should trigger duplicate-headers");
+    assert!(
+        dup[0].message.contains("name"),
+        "warning should be about 'name', not 'commentary'"
+    );
+}
+
 // ---------- duplicate-syllable-center ----------
 
 #[test]
