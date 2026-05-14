@@ -1,6 +1,6 @@
 [package]
 name = "gregorio-lsp"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["AISCGre Brasil"]
 description = "Language Server Protocol implementation for Gregorio GABC/NABC notation files"
