@@ -7,33 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- New validation rule `multi-word-syllable` (Warning): flags syllables like
-  `foo bar baz()` where multiple space-separated words share a single note group.
-  The diagnostic carries an auto-fix that rewrites the text to
-  `foo() bar() baz()` (individual note group per word).
-- `TextFix { range, new_text }` field on `ParseError` — enables auto-fix metadata
-  throughout the lint pipeline.
-- LSP code action support: `textDocument/codeAction` returns a preferred Quick Fix
-  for any diagnostic that carries a `TextFix`, using `Diagnostic.data` to pass the
-  fix information from server to client.
-- `gregolint --fix` flag: applies all auto-fixable diagnostics in-place (or to
-  stdout when reading from stdin), enabling use in pre-commit hooks and CI pipelines.
-- Auto-fix for `nabc-without-header` / `pipe-without-nabc-lines`: inserts
-  `nabc-lines: 1;` as a new header line before `%%` when NABC pipe `|` is used
-  without the corresponding header.
-- Auto-fix for `quilisma-missing-connector`: inserts `@` immediately before the
-  quilisma pitch letter, fusing the preceding note and suppressing the info
-  diagnostic.
-- Auto-fix for `modifiers-in-fused-glyphs`: moves NABC modifier characters (`S`,
-  `G`, `M`, `-`, `>`, `~`) from non-last fusion parts to the last glyph descriptor,
-  producing a single corrected `(gabc|nabc)` replacement.
+## [0.4.0] - 2026-05-14
 
-### Fixed
-- `quilisma-missing-connector` check now correctly detects fusion by inspecting the
-  preceding note's modifiers (the `@` suffix attaches to the note before the
-  quilisma, not to the quilisma itself); previously the check produced false
-  positives when `@` was already present.
+### Added
+- GABC pitch transposition: `shift_notes` shifts all pitch letters
+  (`a`–`n`, `p`) in `(…)` note groups one step up or down through the
+  15-pitch cycle `a b c d e f g h i j k l m n p`.  Uppercase
+  (PunctumInclinatum) letters follow an independent cycle.  Multi-NABC
+  segments (`nabc-lines: N`) are detected and left unchanged.
+  Selection-aware: when a byte range is supplied only pitches within that
+  range are shifted.  Exposed as LSP code actions ("Shift all notes up/down",
+  "Shift selected notes up/down") and workspace command
+  `gregorio/shiftNotesUp` / `gregorio/shiftNotesDown`.
+- GABC empty-group fill: `fill_empty_groups` replaces each empty `()` group
+  with the last GABC pitch letter seen in a preceding non-empty, non-clef
+  group — e.g. `(fgh) () ()` → `(fgh) (h) (h)`.  Clef groups are skipped
+  and do not update the seed pitch.  Multi-NABC aware (uses only the GABC
+  segments to extract the seed).  Selection-aware.  Exposed as LSP code
+  action "Fill empty note groups / Fill empty note groups in selection" and
+  workspace command `gregorio/fillEmptyGroups`.
+- `note_ops` module (`src/note_ops.rs`) consolidating all note-level
+  manipulation helpers: `shift_notes`, `fill_empty_groups`, `shift_pitch`,
+  `is_gabc_pitch`, `parse_nabc_lines`.
+
+### Changed
+- Internal module `transpose` renamed to `note_ops` to reflect that it now
+  hosts multiple unrelated note-manipulation operations.
 
 ## [0.3.0] - 2026-05-04
 
@@ -79,4 +78,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.4.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/aiscgre-br/gregorio-lsp/releases/tag/v0.3.0
