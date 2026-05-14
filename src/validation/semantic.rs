@@ -9,6 +9,7 @@ pub struct SemanticError {
     pub range: Range,
     pub severity: Severity,
     pub related_info: Vec<RelatedInfo>,
+    pub fix: Option<TextFix>,
 }
 
 #[derive(Debug, Clone)]
@@ -24,7 +25,7 @@ impl SemanticError {
             range: self.range,
             severity: self.severity,
             code: Some(self.code.clone()),
-            fix: None,
+            fix: self.fix.clone(),
         }
     }
 }
@@ -34,6 +35,7 @@ pub struct SemanticAnalyzer {
     errors: Vec<SemanticError>,
     warnings: Vec<SemanticError>,
     info: Vec<SemanticError>,
+    notation_start: Position,
 }
 
 impl SemanticAnalyzer {
@@ -45,6 +47,7 @@ impl SemanticAnalyzer {
         self.errors.clear();
         self.warnings.clear();
         self.info.clear();
+        self.notation_start = doc.notation.range.start;
 
         self.validate_headers(&doc.headers);
 
@@ -84,6 +87,7 @@ impl SemanticAnalyzer {
                 range: Range::zero(),
                 severity: Severity::Warning,
                 related_info: Vec::new(),
+                fix: None,
             });
         }
         // Duplicate-header detection requires preserving insertion list with dups; HeaderMap collapses
@@ -100,6 +104,7 @@ impl SemanticAnalyzer {
                 range: first.range,
                 severity: Severity::Error,
                 related_info: Vec::new(),
+                fix: None,
             });
         }
     }
@@ -123,12 +128,18 @@ impl SemanticAnalyzer {
     ) {
         if let Some(nabc) = &note_group.nabc {
             if !nabc.is_empty() && !has_nabc_lines {
+                let insert_line = self.notation_start.line.saturating_sub(1);
+                let insert_pos = Position::new(insert_line, 0);
                 self.errors.push(SemanticError {
                     code: "pipe-without-nabc-lines".into(),
                     message: "Pipe '|' in note group without 'nabc-lines' header. Add 'nabc-lines: 1;' (or higher) to the file header.".into(),
                     range: note_group.range,
                     severity: Severity::Error,
                     related_info: Vec::new(),
+                    fix: Some(TextFix {
+                        range: Range::new(insert_pos, insert_pos),
+                        new_text: "nabc-lines: 1;\n".to_string(),
+                    }),
                 });
             }
         }
@@ -165,6 +176,7 @@ impl SemanticAnalyzer {
                     range: note.range,
                     severity: Severity::Warning,
                     related_info: Vec::new(),
+                    fix: None,
                 });
             }
 
@@ -181,6 +193,7 @@ impl SemanticAnalyzer {
                     range: note.range,
                     severity: Severity::Warning,
                     related_info: Vec::new(),
+                    fix: None,
                 });
             }
 
@@ -203,6 +216,7 @@ impl SemanticAnalyzer {
                         range: note.range,
                         severity: Severity::Warning,
                         related_info: Vec::new(),
+                        fix: None,
                     });
                 } else if !valid_prev {
                     let next_pitch = next.map(|n| n.pitch).unwrap_or_else(|| next_pitch_example(note.pitch));
@@ -218,6 +232,7 @@ impl SemanticAnalyzer {
                         range: note.range,
                         severity: Severity::Warning,
                         related_info: Vec::new(),
+                        fix: None,
                     });
                 } else if !valid_next {
                     let prev_pitch = prev.map(|p| p.pitch).unwrap_or_else(|| previous_pitch_example(note.pitch));
@@ -233,6 +248,7 @@ impl SemanticAnalyzer {
                         range: note.range,
                         severity: Severity::Warning,
                         related_info: Vec::new(),
+                        fix: None,
                     });
                 }
             }
@@ -253,6 +269,7 @@ impl SemanticAnalyzer {
                                 message: "Following note".into(),
                                 range: n.range,
                             }],
+                            fix: None,
                         });
                     } else {
                         // Quilisma-pes preceded by equal/higher pitch
@@ -269,6 +286,7 @@ impl SemanticAnalyzer {
                                     range: note.range,
                                     severity: Severity::Warning,
                                     related_info: Vec::new(),
+                                    fix: None,
                                 });
                             }
                         }
@@ -294,6 +312,7 @@ impl SemanticAnalyzer {
                                 message: "Following note".into(),
                                 range: n.range,
                             }],
+                            fix: None,
                         });
                     }
                 }
@@ -320,6 +339,7 @@ impl SemanticAnalyzer {
                                 message: "Following note".into(),
                                 range: after_pes.range,
                             }],
+                            fix: None,
                         });
                     }
                 }
@@ -342,6 +362,7 @@ impl SemanticAnalyzer {
                             range,
                             severity: Severity::Warning,
                             related_info: Vec::new(),
+                            fix: None,
                         });
                     }
                 }
@@ -358,6 +379,7 @@ impl SemanticAnalyzer {
                             range,
                             severity: Severity::Warning,
                             related_info: Vec::new(),
+                            fix: None,
                         });
                     }
                 }
@@ -376,7 +398,8 @@ impl SemanticAnalyzer {
         }
         for i in 0..notes.len() {
             let note = &notes[i];
-            if note.shape == NoteShape::Quilisma && i > 0 && !has_mod(note, ModifierType::Fusion) {
+            if note.shape == NoteShape::Quilisma && i > 0 && !has_mod(&notes[i - 1], ModifierType::Fusion) {
+                let insert_pos = note.range.start;
                 self.info.push(SemanticError {
                     code: "quilisma-missing-connector".into(),
                     message: format!(
@@ -386,6 +409,10 @@ impl SemanticAnalyzer {
                     range: note.range,
                     severity: Severity::Info,
                     related_info: Vec::new(),
+                    fix: Some(TextFix {
+                        range: Range::new(insert_pos, insert_pos),
+                        new_text: "@".to_string(),
+                    }),
                 });
             }
         }

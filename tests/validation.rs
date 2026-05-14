@@ -131,3 +131,89 @@ fn multi_word_syllable_no_false_positive_on_separate_groups() {
         "unexpected multi-word-syllable diagnostic on well-formed input"
     );
 }
+
+// ---------- nabc-without-header auto-fix ----------
+
+#[test]
+fn nabc_without_header_has_fix() {
+    let text = "name: Test;\n%%\n(c4) test(f|vi)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("nabc-without-header"))
+        .expect("expected nabc-without-header diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "nabc-lines: 1;\n");
+    assert_eq!(fix.range.start.line, 1);
+    assert_eq!(fix.range.start.character, 0);
+    assert_eq!(fix.range.end, fix.range.start, "insertion fix must be zero-width");
+}
+
+#[test]
+fn nabc_without_header_no_fix_when_header_present() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|vi)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("nabc-without-header")),
+        "unexpected nabc-without-header diagnostic when header is present"
+    );
+}
+
+// ---------- quilisma-missing-connector auto-fix ----------
+
+#[test]
+fn quilisma_missing_connector_has_fix() {
+    let text = "name: Test;\n%%\n(c4) test(fghw i)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("quilisma-missing-connector"))
+        .expect("expected quilisma-missing-connector diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "@");
+    assert_eq!(fix.range.start, fix.range.end, "insertion fix must be zero-width");
+}
+
+#[test]
+fn quilisma_missing_connector_no_fix_when_fused() {
+    let text = "name: Test;\n%%\n(c4) test(fg@hw i)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("quilisma-missing-connector")),
+        "unexpected quilisma-missing-connector when @ already present"
+    );
+}
+
+// ---------- modifiers-in-fused-glyphs auto-fix ----------
+
+#[test]
+fn modifiers_in_fused_glyphs_has_fix() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|viS!ta)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("modifiers-in-fused-glyphs"))
+        .expect("expected modifiers-in-fused-glyphs diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert!(
+        fix.new_text.contains("vi!taS"),
+        "fix should move modifier S to last glyph; got: {}",
+        fix.new_text
+    );
+}
+
+#[test]
+fn modifiers_in_fused_glyphs_no_fix_when_last_has_modifier() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|vi!taS)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("modifiers-in-fused-glyphs")),
+        "unexpected modifiers-in-fused-glyphs when modifier is on last glyph"
+    );
+}

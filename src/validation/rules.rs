@@ -96,11 +96,18 @@ fn nabc_without_header(doc: &ParsedDocument) -> Vec<ParseError> {
         .iter()
         .any(|s| s.notes.iter().any(|n| n.nabc.as_ref().is_some_and(|v| !v.is_empty())));
     if has_nabc && !has_header {
+        let insert_line = doc.notation.range.start.line.saturating_sub(1);
+        let insert_pos = Position::new(insert_line, 0);
         vec![ParseError::new(
             "pipe '|' in note group without `nabc-lines` header",
             Range::zero(),
             Severity::Error,
-        )]
+        )
+        .with_code("nabc-without-header")
+        .with_fix(TextFix {
+            range: Range::new(insert_pos, insert_pos),
+            new_text: "nabc-lines: 1;\n".to_string(),
+        })]
     } else {
         Vec::new()
     }
@@ -245,12 +252,36 @@ fn balanced_pitch_descriptors_in_fused_glyphs(doc: &ParsedDocument) -> Vec<Parse
     out
 }
 
+fn fix_nabc_fusion_modifiers(line: &str, modifier_chars: &[char]) -> String {
+    if !line.contains('!') {
+        return line.to_string();
+    }
+    let parts: Vec<&str> = line.split('!').collect();
+    if parts.len() < 2 {
+        return line.to_string();
+    }
+    let mut fixed_parts: Vec<String> = Vec::new();
+    let mut collected: String = String::new();
+    for (i, part) in parts.iter().enumerate() {
+        if i < parts.len() - 1 {
+            let stripped: String = part.chars().filter(|c| !modifier_chars.contains(c)).collect();
+            let mods: String = part.chars().filter(|c| modifier_chars.contains(c)).collect();
+            fixed_parts.push(stripped);
+            collected.push_str(&mods);
+        } else {
+            fixed_parts.push(format!("{part}{collected}"));
+        }
+    }
+    fixed_parts.join("!")
+}
+
 fn modifiers_in_fused_glyphs(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
     let modifier_chars = ['S', 'G', 'M', '-', '>', '~'];
     for syllable in &doc.notation.syllables {
         for note in &syllable.notes {
             let Some(nabc) = note.nabc.as_ref() else { continue };
+            let mut offending_part: Option<(&str, &str)> = None; // (part, last)
             for line in nabc {
                 if !line.contains('!') {
                     continue;
@@ -262,16 +293,39 @@ fn modifiers_in_fused_glyphs(doc: &ParsedDocument) -> Vec<ParseError> {
                 let last = parts[parts.len() - 1];
                 for part in &parts[..parts.len() - 1] {
                     if part.chars().any(|c| modifier_chars.contains(&c)) {
-                        out.push(ParseError::new(
-                            format!(
-                                "Modifiers in fused glyphs are only allowed on the last glyph descriptor (Gregorio 6.1.0). Found modifier in '{part}' but only '{last}' (the last glyph) can have modifiers."
-                            ),
-                            note.range,
-                            Severity::Warning,
-                        ));
+                        offending_part = Some((part, last));
                         break;
                     }
                 }
+                if offending_part.is_some() {
+                    break;
+                }
+            }
+            if let Some((part, last)) = offending_part {
+                let fixed_nabc: Vec<String> = nabc
+                    .iter()
+                    .map(|line| fix_nabc_fusion_modifiers(line, &modifier_chars))
+                    .collect();
+                let mut fix_text = format!("({}", note.gabc);
+                for line in &fixed_nabc {
+                    fix_text.push('|');
+                    fix_text.push_str(line);
+                }
+                fix_text.push(')');
+                out.push(
+                    ParseError::new(
+                        format!(
+                            "Modifiers in fused glyphs are only allowed on the last glyph descriptor (Gregorio 6.1.0). Found modifier in '{part}' but only '{last}' (the last glyph) can have modifiers."
+                        ),
+                        note.range,
+                        Severity::Warning,
+                    )
+                    .with_code("modifiers-in-fused-glyphs")
+                    .with_fix(TextFix {
+                        range: note.range,
+                        new_text: fix_text,
+                    }),
+                );
             }
         }
     }

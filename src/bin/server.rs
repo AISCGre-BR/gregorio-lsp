@@ -10,6 +10,7 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_lsp::parser::types::Severity as PSeverity;
 use gregorio_lsp::parser::GabcParser;
+use gregorio_lsp::transpose::{shift_notes, ShiftDirection};
 #[cfg(feature = "tree-sitter")]
 use gregorio_lsp::tree_sitter_integration::TreeSitterParser;
 #[cfg(feature = "tree-sitter")]
@@ -135,11 +136,21 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 code_action_provider: Some(CodeActionProviderCapability::Options(
                     CodeActionOptions {
-                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        code_action_kinds: Some(vec![
+                            CodeActionKind::QUICKFIX,
+                            CodeActionKind::new("source.gabc"),
+                        ]),
                         resolve_provider: Some(false),
                         work_done_progress_options: Default::default(),
                     },
                 )),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec![
+                        "gregorio/shiftNotesUp".to_string(),
+                        "gregorio/shiftNotesDown".to_string(),
+                    ],
+                    work_done_progress_options: Default::default(),
+                }),
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
@@ -403,6 +414,48 @@ impl LanguageServer for Backend {
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+
+        // Shift-notes actions are always offered for any open GABC document.
+        if let Some(text) = { self.documents.lock().unwrap().get(&params.text_document.uri).cloned() } {
+            let is_selection = params.range.start != params.range.end;
+            let byte_range = if is_selection {
+                lsp_range_to_byte_range(&text, params.range)
+            } else {
+                None
+            };
+
+            for &dir in &[ShiftDirection::Up, ShiftDirection::Down] {
+                let new_text = shift_notes(&text, dir, byte_range.clone());
+                let title = match (dir, is_selection) {
+                    (ShiftDirection::Up, false)   => "Shift all notes up",
+                    (ShiftDirection::Up, true)    => "Shift selected notes up",
+                    (ShiftDirection::Down, false) => "Shift all notes down",
+                    (ShiftDirection::Down, true)  => "Shift selected notes down",
+                };
+                let (end_line, end_col) = doc_end(&text);
+                let full_range = Range {
+                    start: Position::new(0, 0),
+                    end: Position::new(end_line, end_col),
+                };
+                let mut changes = std::collections::HashMap::new();
+                changes.insert(
+                    params.text_document.uri.clone(),
+                    vec![TextEdit { range: full_range, new_text }],
+                );
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: title.to_string(),
+                    kind: Some(CodeActionKind::new("source.gabc")),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
+                    is_preferred: Some(false),
+                    ..Default::default()
+                }));
+            }
+        }
+
+        // Diagnostic-based quickfix actions.
         for diag in &params.context.diagnostics {
             let Some(data) = diag.data.as_ref() else {
                 continue;
@@ -445,6 +498,63 @@ impl LanguageServer for Backend {
         }
         Ok(if actions.is_empty() { None } else { Some(actions) })
     }
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+        let dir = match params.command.as_str() {
+            "gregorio/shiftNotesUp" => ShiftDirection::Up,
+            "gregorio/shiftNotesDown" => ShiftDirection::Down,
+            _ => return Ok(None),
+        };
+
+        let arg = params.arguments.first().and_then(|v| v.as_object());
+        let uri: Url = arg
+            .and_then(|a| a.get("uri"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| tower_lsp::jsonrpc::Error {
+                code: tower_lsp::jsonrpc::ErrorCode::InvalidParams,
+                message: "Missing or invalid 'uri' argument".into(),
+                data: None,
+            })?;
+
+        let text = { self.documents.lock().unwrap().get(&uri).cloned() }
+            .ok_or_else(|| tower_lsp::jsonrpc::Error {
+                code: tower_lsp::jsonrpc::ErrorCode::InvalidParams,
+                message: "Document not open in server".into(),
+                data: None,
+            })?;
+
+        // Optional selection range carried in the argument.
+        let byte_range = arg.and_then(|a| {
+            let rv = a.get("range")?;
+            let sl = rv.pointer("/start/line")?.as_u64()? as u32;
+            let sc = rv.pointer("/start/character")?.as_u64()? as u32;
+            let el = rv.pointer("/end/line")?.as_u64()? as u32;
+            let ec = rv.pointer("/end/character")?.as_u64()? as u32;
+            let lsp_range = Range {
+                start: Position::new(sl, sc),
+                end: Position::new(el, ec),
+            };
+            if lsp_range.start == lsp_range.end { None } else { lsp_range_to_byte_range(&text, lsp_range) }
+        });
+
+        let new_text = shift_notes(&text, dir, byte_range);
+        if new_text == text {
+            return Ok(None);
+        }
+
+        let (end_line, end_col) = doc_end(&text);
+        let full_range = Range {
+            start: Position::new(0, 0),
+            end: Position::new(end_line, end_col),
+        };
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(uri, vec![TextEdit { range: full_range, new_text }]);
+        self.client
+            .apply_edit(WorkspaceEdit { changes: Some(changes), ..Default::default() })
+            .await?;
+
+        Ok(None)
+    }
 }
 
 #[tokio::main]
@@ -464,6 +574,20 @@ fn apply_lsp_change(text: &str, range: tower_lsp::lsp_types::Range, replacement:
     out.push_str(replacement);
     out.push_str(&text[end..]);
     Some(out)
+}
+
+fn lsp_range_to_byte_range(text: &str, range: Range) -> Option<std::ops::Range<usize>> {
+    let start = byte_offset(text, range.start)?;
+    let end = byte_offset(text, range.end)?;
+    Some(start..end)
+}
+
+/// Returns the (line, column) of the last character in `text`, suitable for
+/// use as the `end` position of a full-document `TextEdit`.
+fn doc_end(text: &str) -> (u32, u32) {
+    let line_count = text.matches('\n').count() as u32;
+    let last_col = text.rfind('\n').map_or(text.len(), |i| text.len() - i - 1) as u32;
+    (line_count, last_col)
 }
 
 fn byte_offset(text: &str, pos: tower_lsp::lsp_types::Position) -> Option<usize> {

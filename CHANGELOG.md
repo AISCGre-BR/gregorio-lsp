@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fix information from server to client.
 - `gregolint --fix` flag: applies all auto-fixable diagnostics in-place (or to
   stdout when reading from stdin), enabling use in pre-commit hooks and CI pipelines.
+- Auto-fix for `nabc-without-header` / `pipe-without-nabc-lines`: inserts
+  `nabc-lines: 1;` as a new header line before `%%` when NABC pipe `|` is used
+  without the corresponding header.
+- Auto-fix for `quilisma-missing-connector`: inserts `@` immediately before the
+  quilisma pitch letter, fusing the preceding note and suppressing the info
+  diagnostic.
+- Auto-fix for `modifiers-in-fused-glyphs`: moves NABC modifier characters (`S`,
+  `G`, `M`, `-`, `>`, `~`) from non-last fusion parts to the last glyph descriptor,
+  producing a single corrected `(gabc|nabc)` replacement.
+
+### Fixed
+- `quilisma-missing-connector` check now correctly detects fusion by inspecting the
+  preceding note's modifiers (the `@` suffix attaches to the note before the
+  quilisma, not to the quilisma itself); previously the check produced false
+  positives when `@` was already present.
 
 ## [0.3.0] - 2026-05-04
 
