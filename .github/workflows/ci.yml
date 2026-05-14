@@ -24,7 +24,7 @@ jobs:
             cargo-flags: "--features tree-sitter"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable toolchain with clippy and rustfmt
         uses: dtolnay/rust-toolchain@stable
