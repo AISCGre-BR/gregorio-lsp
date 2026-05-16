@@ -38,7 +38,6 @@ Known rule codes (use any of these in `ignoreRules`):
 | `staff-lines` | Error | `staff-lines` value outside the 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |
-| `multi-word-syllable` | Warning | Multiple space-separated words share a single note group; auto-fixable to `word1() word2(notes)` |
 | `line-break-at-end-of-score` | Warning | Forced line break (`z`/`Z` and variants) at end of score is ignored by GregorioTeX; auto-fixable by removing it |
 | `duplicate-syllable-center` | Warning | Syllable text contains multiple `{…}` forced-center markers; only the first is used |
 | `center-after-protrusion` | Warning | Forced center `{…}` appears after a `<pr>` protrusion; the center will be ignored |

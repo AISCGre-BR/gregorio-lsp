@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Validation rule `multi-word-syllable` (Warning): flagged syllable text containing
+  multiple space-separated words sharing a single note group (e.g. `foo bar baz()`)
+  and offered an auto-fix. The Gregorio maintainers confirmed that the GABC
+  specification is silent on this pattern and that it works as expected in practice,
+  so the diagnostic was incorrect. The rule and its auto-fix have been removed
+  entirely.
+
 ### Changed
 - Validation rule `virga-strata-higher-pitch` renamed and expanded to
   `oriscus-higher-pitch` (structural, `rules.rs`). The rule now covers **any oriscus

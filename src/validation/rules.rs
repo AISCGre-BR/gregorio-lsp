@@ -404,19 +404,6 @@ fn modifiers_in_fused_glyphs(doc: &ParsedDocument) -> Vec<ParseError> {
     out
 }
 
-fn reconstruct_note_group_gabc(ng: &NoteGroup) -> String {
-    let mut s = String::from("(");
-    s.push_str(&ng.gabc);
-    if let Some(nabc) = &ng.nabc {
-        for line in nabc {
-            s.push('|');
-            s.push_str(line);
-        }
-    }
-    s.push(')');
-    s
-}
-
 /// Returns the trailing line-break marker (`z`, `Z`, `z+`, `z-`, `Z+`, `Z-`) if the gabc
 /// string ends with one, or `None` otherwise. `z0` (auto-custos) is naturally excluded
 /// because it ends with `'0'`, not with `'z'`.
@@ -495,48 +482,6 @@ fn line_break_at_end_of_score(doc: &ParsedDocument) -> Vec<ParseError> {
             new_text,
         }),
     ]
-}
-
-fn multi_word_syllable(doc: &ParsedDocument) -> Vec<ParseError> {
-    let mut out = Vec::new();
-    for syllable in &doc.notation.syllables {
-        let words: Vec<&str> = syllable.text.split_whitespace().collect();
-        if words.len() < 2 {
-            continue;
-        }
-        let last_idx = words.len() - 1;
-        let last_ng = syllable.notes.last().map(reconstruct_note_group_gabc);
-        let last_group_str = last_ng.as_deref().unwrap_or("()");
-        let mut fix_text = String::new();
-        for (i, word) in words.iter().enumerate() {
-            if i > 0 {
-                fix_text.push(' ');
-            }
-            fix_text.push_str(word);
-            if i == last_idx {
-                fix_text.push_str(last_group_str);
-            } else {
-                fix_text.push_str("()");
-            }
-        }
-        out.push(
-            ParseError::new(
-                format!(
-                    "Multiple space-separated words '{}' share a single note group; \
-                     split into individual note groups: '{fix_text}'",
-                    syllable.text,
-                ),
-                syllable.range,
-                Severity::Warning,
-            )
-            .with_code("multi-word-syllable")
-            .with_fix(TextFix {
-                range: syllable.range,
-                new_text: fix_text,
-            }),
-        );
-    }
-    out
 }
 
 // ---------- Syllable text-markup helpers ----------
@@ -935,11 +880,7 @@ pub const VALIDATE_MODIFIERS_FUSED: ValidationRule = ValidationRule {
     severity: Severity::Warning,
     validate: modifiers_in_fused_glyphs,
 };
-pub const VALIDATE_MULTI_WORD_SYLLABLE: ValidationRule = ValidationRule {
-    name: "multi-word-syllable",
-    severity: Severity::Warning,
-    validate: multi_word_syllable,
-};
+
 pub const VALIDATE_LINE_BREAK_AT_END_OF_SCORE: ValidationRule = ValidationRule {
     name: "line-break-at-end-of-score",
     severity: Severity::Warning,
@@ -959,7 +900,6 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_STAFF_LINES,
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,
-        &VALIDATE_MULTI_WORD_SYLLABLE,
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
         &VALIDATE_DUPLICATE_SYLLABLE_CENTER,
         &VALIDATE_CENTER_AFTER_PROTRUSION,
