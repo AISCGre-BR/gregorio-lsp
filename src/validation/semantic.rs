@@ -122,6 +122,7 @@ impl SemanticAnalyzer {
                 self.validate_note_group(note_group, has_nabc_lines, prev);
             }
         }
+        self.validate_oriscus_pitch(syllables);
     }
 
     fn validate_note_group(
@@ -304,28 +305,6 @@ impl SemanticAnalyzer {
                 }
             }
 
-            // Virga strata followed by equal/higher pitch
-            if note.shape == NoteShape::Virga && has_mod(note, ModifierType::Strata) {
-                if let Some(n) = next {
-                    if compare_pitch(n.pitch, note.pitch) >= 0 {
-                        self.warnings.push(SemanticError {
-                            code: "virga-strata-equal-or-higher".into(),
-                            message: format!(
-                                "Virga strata at '{}' followed by equal or higher pitch '{}'. This may cause placement issues.",
-                                note.pitch, n.pitch
-                            ),
-                            range: note.range,
-                            severity: Severity::Warning,
-                            related_info: vec![RelatedInfo {
-                                message: "Following note".into(),
-                                range: n.range,
-                            }],
-                            fix: None,
-                        });
-                    }
-                }
-            }
-
             // Pes stratus
             if note.shape == NoteShape::Punctum && has_mod(note, ModifierType::Strata) {
                 if let (Some(pes), Some(after_pes)) = (notes.get(i + 1), notes.get(i + 2)) {
@@ -393,6 +372,54 @@ impl SemanticAnalyzer {
 
             if let Some(fusion) = &descriptor.fusion {
                 self.validate_nabc(std::slice::from_ref(fusion.as_ref()));
+            }
+        }
+    }
+
+    /// Checks any oriscus that is the last (or only) note in its note group against
+    /// the first note of the subsequent group.
+    ///
+    /// An oriscus that has a following note **within the same group** belongs to a
+    /// salicus or pes-quassus, where the higher subsequent note is intentional — those
+    /// cases are excluded.
+    fn validate_oriscus_pitch(&mut self, syllables: &[Syllable]) {
+        let all_groups: Vec<&NoteGroup> = syllables.iter().flat_map(|s| s.notes.iter()).collect();
+
+        for g_idx in 0..all_groups.len() {
+            let notes = &all_groups[g_idx].notes;
+            for i in 0..notes.len() {
+                let note = &notes[i];
+                if note.shape != NoteShape::Oriscus {
+                    continue;
+                }
+                // Oriscus with a following note in the same group → salicus or
+                // pes-quassus context: the higher following note is intentional.
+                if notes.get(i + 1).is_some() {
+                    continue;
+                }
+                // Find the first note of the next non-empty group.
+                let next_note = all_groups[g_idx + 1..]
+                    .iter()
+                    .flat_map(|g| g.notes.iter())
+                    .next();
+                if let Some(n) = next_note {
+                    if compare_pitch(n.pitch, note.pitch) >= 0 {
+                        self.warnings.push(SemanticError {
+                            code: "oriscus-equal-or-higher".into(),
+                            message: format!(
+                                "Oriscus at '{}' followed by a note of equal or higher pitch '{}'. This may cause rendering issues.",
+                                note.pitch, n.pitch
+                            ),
+                            range: note.range,
+                            severity: Severity::Warning,
+                            related_info: vec![RelatedInfo {
+                                message: "Following note".into(),
+                                range: n.range,
+                            }],
+                            fix: None,
+                        });
+                    }
+                }
             }
         }
     }

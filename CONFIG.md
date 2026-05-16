@@ -34,7 +34,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | `nabc-without-header` | Error | NABC pipe `\|` without `nabc-lines` header |
 | `quilisma-lower-pitch` | Warning | Quilisma followed by equal or lower pitch |
 | `quilisma-pes-higher-pitch` | Warning | Quilisma-pes preceded by equal or higher pitch |
-| `virga-strata-higher-pitch` | Warning | Virga strata followed by equal or higher pitch |
+| `oriscus-higher-pitch` | Warning | Oriscus at end of a neume (or isolated) followed by equal or higher pitch — covers virga strata and isolated oriscus; excludes salicus and pes-quassus (where the higher following note is intentional) |
 | `staff-lines` | Error | `staff-lines` value outside the 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |
@@ -52,7 +52,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | `oriscus-scapus-missing-subsequent` | Warning | `O` requires a subsequent note |
 | `quilisma-equal-or-lower` | Warning | Quilisma followed by lower or equal pitch |
 | `quilisma-pes-preceded-by-higher` | Warning | Quilisma-pes preceded by higher or equal pitch |
-| `virga-strata-equal-or-higher` | Warning | Virga strata followed by higher or equal pitch |
+| `oriscus-equal-or-higher` | Warning | Oriscus at end of a neume (or isolated) followed by equal or higher pitch — covers virga strata and isolated oriscus; excludes salicus and pes-quassus |
 | `pes-stratus-equal-or-higher` | Warning | Pes stratus ending with a higher or equal following note |
 | `nabc-conflicting-liquescence` | Warning | Both `>` and `~` on the same NABC descriptor |
 | `nabc-invalid-pitch` | Warning | Invalid NABC pitch letter |

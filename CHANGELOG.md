@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Validation rule `virga-strata-higher-pitch` renamed and expanded to
+  `oriscus-higher-pitch` (structural, `rules.rs`). The rule now covers **any oriscus
+  that is the last (or only) note in its note group** — i.e. both isolated oriscus and
+  virga strata — not just the virga-strata-specific pattern. An oriscus that has a
+  following note in the same group (salicus, pes-quassus) is excluded, as the higher
+  note is intentional in those neumes. The check is now a cross-group boundary scan
+  (the next note may be in the next syllable's group), correcting the previous
+  implementation which was dead code (`ModifierType::Strata` was never set by the
+  parser). **Replaces the `virga-strata-higher-pitch` code** — update any `ignoreRules`
+  config entries accordingly.
+- Semantic check `virga-strata-equal-or-higher` (previously dead code) replaced by
+  `oriscus-equal-or-higher` (`semantic.rs`) with the same expanded scope and
+  cross-group-boundary logic.
+
 ## [0.6.0] - 2026-05-14
 
 ### Changed

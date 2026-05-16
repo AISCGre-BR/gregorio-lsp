@@ -33,10 +33,6 @@ fn pitch_value(p: char) -> i32 {
     }
 }
 
-fn has_modifier(note: &Note, kind: ModifierType) -> bool {
-    note.modifiers.iter().any(|m| m.kind == kind)
-}
-
 // ---------- Rules ----------
 
 fn name_header(doc: &ParsedDocument) -> Vec<ParseError> {
@@ -92,9 +88,7 @@ fn duplicate_headers(doc: &ParsedDocument) -> Vec<ParseError> {
                      GregorioTeX only uses the first 2."
                 )
             } else {
-                format!(
-                    "Header '{key}' defined {total} time(s); only the last definition is used."
-                )
+                format!("Header '{key}' defined {total} time(s); only the last definition is used.")
             };
             errors.push(
                 ParseError::new(msg, Range::zero(), Severity::Warning)
@@ -213,22 +207,45 @@ fn quilisma_pes_preceded_by_higher(doc: &ParsedDocument) -> Vec<ParseError> {
     out
 }
 
-fn virga_strata_followed_by_higher(doc: &ParsedDocument) -> Vec<ParseError> {
+fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> {
+    // Collect all note groups across all syllables in document order.
+    // Each syllable holds at most one note group; we flatten for generality.
+    let all_groups: Vec<&NoteGroup> = doc
+        .notation
+        .syllables
+        .iter()
+        .flat_map(|s| s.notes.iter())
+        .collect();
+
     let mut out = Vec::new();
-    for syllable in &doc.notation.syllables {
-        for note_group in &syllable.notes {
-            for window in note_group.notes.windows(2) {
-                let cur = &window[0];
-                let next = &window[1];
-                if cur.shape == NoteShape::Virga
-                    && has_modifier(cur, ModifierType::Strata)
-                    && pitch_value(next.pitch) >= pitch_value(cur.pitch)
-                {
-                    out.push(ParseError::new(
-                        "Virga strata followed by equal or higher pitch note may cause rendering issues",
-                        cur.range,
-                        Severity::Warning,
-                    ));
+    for g_idx in 0..all_groups.len() {
+        let notes = &all_groups[g_idx].notes;
+        for i in 0..notes.len() {
+            let note = &notes[i];
+            if note.shape != NoteShape::Oriscus {
+                continue;
+            }
+            // If there is a subsequent note in the same group, the oriscus is part of
+            // a salicus or pes-quassus — the following higher note is intentional.
+            if notes.get(i + 1).is_some() {
+                continue;
+            }
+            // The oriscus is the last (or only) note in its group.
+            // Find the first note of the next non-empty group (cross-group boundary).
+            let next_note = all_groups[g_idx + 1..]
+                .iter()
+                .flat_map(|g| g.notes.iter())
+                .next();
+            if let Some(n) = next_note {
+                if pitch_value(n.pitch) >= pitch_value(note.pitch) {
+                    out.push(
+                        ParseError::new(
+                            "Oriscus followed by a note of equal or higher pitch may cause rendering issues",
+                            note.range,
+                            Severity::Warning,
+                        )
+                        .with_code("oriscus-higher-pitch"),
+                    );
                 }
             }
         }
@@ -898,10 +915,10 @@ pub const VALIDATE_QUILISMA_PES_HIGHER: ValidationRule = ValidationRule {
     severity: Severity::Warning,
     validate: quilisma_pes_preceded_by_higher,
 };
-pub const VALIDATE_VIRGA_STRATA_HIGHER: ValidationRule = ValidationRule {
-    name: "virga-strata-higher-pitch",
+pub const VALIDATE_ORISCUS_HIGHER: ValidationRule = ValidationRule {
+    name: "oriscus-higher-pitch",
     severity: Severity::Warning,
-    validate: virga_strata_followed_by_higher,
+    validate: oriscus_followed_by_equal_or_higher,
 };
 pub const VALIDATE_STAFF_LINES: ValidationRule = ValidationRule {
     name: "staff-lines",
@@ -938,7 +955,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_NABC_WITHOUT_HEADER,
         &VALIDATE_QUILISMA_LOWER,
         &VALIDATE_QUILISMA_PES_HIGHER,
-        &VALIDATE_VIRGA_STRATA_HIGHER,
+        &VALIDATE_ORISCUS_HIGHER,
         &VALIDATE_STAFF_LINES,
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,
