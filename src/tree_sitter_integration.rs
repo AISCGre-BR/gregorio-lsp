@@ -113,10 +113,7 @@ impl TreeSitterParser {
         position: Position,
     ) -> Option<Node<'tree>> {
         let target = point_for_position(position, text);
-        Some(
-            tree.root_node()
-                .descendant_for_point_range(target, target)?,
-        )
+        tree.root_node().descendant_for_point_range(target, target)
     }
 
     pub fn node_text<'a>(&self, node: Node<'_>, text: &'a str) -> &'a str {

@@ -414,12 +414,10 @@ fn modifiers_in_fused_glyphs(doc: &ParsedDocument) -> Vec<ParseError> {
 /// because it ends with `'0'`, not with `'z'`.
 fn trailing_line_break_marker(gabc: &str) -> Option<&'static str> {
     // Longer variants first to avoid matching "z" inside "z+"
-    for &suffix in &["z+", "z-", "Z+", "Z-", "z", "Z"] {
-        if gabc.ends_with(suffix) {
-            return Some(suffix);
-        }
-    }
-    None
+    ["z+", "z-", "Z+", "Z-", "z", "Z"]
+        .iter()
+        .find(|&&suffix| gabc.ends_with(suffix))
+        .copied()
 }
 
 fn line_break_at_end_of_score(doc: &ParsedDocument) -> Vec<ParseError> {
