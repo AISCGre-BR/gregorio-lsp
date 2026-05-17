@@ -676,6 +676,8 @@ fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
             continue;
         };
         let remainder = &raw_text[prefix_end..];
+        // A punctuation-only syllable with its own note group can be intentional,
+        // so only flag whitespace-only remainders when the punctuation is trailing text.
         if remainder.trim_start().is_empty() && !current.notes.is_empty() {
             continue;
         }
