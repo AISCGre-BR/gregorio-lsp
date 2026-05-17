@@ -8,9 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Replaced `seg % period == 0` with `seg.is_multiple_of(period)` (×2) in
+  `src/note_ops.rs` to satisfy clippy's `int_remainder_by_odd` lint.
+- Replaced `.map_or(true, |r| r.contains(...))` with `.is_none_or(...)` (×2) in
+  `src/note_ops.rs` to satisfy clippy's `option_if_let_else` lint.
+- Refactored the manual `for` loop in `trailing_line_break_marker`
+  (`src/validation/rules.rs`) into an `Iterator::find` chain to satisfy clippy's
+  `manual_find` lint.
 - Removed a redundant `Some(expr?)` pattern in `TreeSitterParser::find_node_at`
   (`src/tree_sitter_integration.rs`) that triggered a `needless_question_mark`
-  clippy error when compiling with `--features tree-sitter`, breaking CI.
+  clippy error when compiling with `--features tree-sitter`.
+- All four fixes together resolve 6 clippy warnings that were breaking CI.
 
 ## [0.7.1] - 2026-05-16
 
