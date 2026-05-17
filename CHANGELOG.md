@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.1] - 2026-05-16
 
+### Added
+- New validation rule `punctuation-after-note-group` (Warning, auto-fixable):
+  detects punctuation typed after a syllable's note-group parentheses
+  (for example `foo(), bar(); baz():`), which makes GregorioTeX hyphenate the
+  rendered text incorrectly. The auto-fix moves the punctuation before the
+  previous `(...)` group (`foo,() bar;() baz:()`).
+
 ### Changed
 - Merged redundant `oriscus-equal-or-higher` (semantic) into the structural
   `oriscus-higher-pitch` rule: the two checks were logically identical; only the

@@ -255,6 +255,55 @@ fn line_break_at_end_of_score_custos_z0_is_not_flagged() {
 }
 
 #[test]
+fn punctuation_after_note_group_has_fix() {
+    let text = "name: Test;\n%%\nfoo(), bar(); baz():";
+    let diags = lint(text);
+    let punct_diags: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code.as_deref() == Some("punctuation-after-note-group"))
+        .collect();
+
+    assert_eq!(punct_diags.len(), 3, "expected one diagnostic per misplaced punctuation mark");
+    assert_eq!(punct_diags[0].severity, Severity::Warning);
+    assert_eq!(
+        punct_diags[0]
+            .fix
+            .as_ref()
+            .expect("expected first fix")
+            .new_text,
+        ",() bar"
+    );
+    assert_eq!(
+        punct_diags[1]
+            .fix
+            .as_ref()
+            .expect("expected second fix")
+            .new_text,
+        ";() baz"
+    );
+    assert_eq!(
+        punct_diags[2]
+            .fix
+            .as_ref()
+            .expect("expected third fix")
+            .new_text,
+        ":()"
+    );
+}
+
+#[test]
+fn punctuation_after_note_group_no_false_positive_when_punctuation_is_before_parentheses() {
+    let text = "name: Test;\n%%\nfoo,() bar;() baz:()";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("punctuation-after-note-group")),
+        "correct punctuation placement should not trigger the rule"
+    );
+}
+
+#[test]
 fn modifiers_in_fused_glyphs_has_fix() {
     let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|viS!ta)";
     let diags = lint(text);

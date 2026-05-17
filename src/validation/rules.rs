@@ -618,7 +618,85 @@ fn close_center_before_pr(text: &str) -> String {
     result
 }
 
+fn is_misplaced_post_note_punctuation(ch: char) -> bool {
+    matches!(ch, ',' | ';' | ':' | '.' | '!' | '?')
+}
+
+fn leading_misplaced_punctuation_prefix(text: &str) -> Option<usize> {
+    let mut end = 0usize;
+    for (idx, ch) in text.char_indices() {
+        if is_misplaced_post_note_punctuation(ch) {
+            end = idx + ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    (end > 0).then_some(end)
+}
+
+fn note_group_source(group: &NoteGroup) -> String {
+    let mut text = String::from("(");
+    text.push_str(&group.gabc);
+    if let Some(nabc) = &group.nabc {
+        for line in nabc {
+            text.push('|');
+            text.push_str(line);
+        }
+    }
+    text.push(')');
+    text
+}
+
 // ---------- Syllable text-markup rules ----------
+
+fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for window in doc.notation.syllables.windows(2) {
+        let previous = &window[0];
+        let current = &window[1];
+        let Some(previous_group) = previous.notes.last() else {
+            continue;
+        };
+        let raw_text = syllable_raw_text(current);
+        let Some(prefix_end) = leading_misplaced_punctuation_prefix(raw_text) else {
+            continue;
+        };
+        let remainder = &raw_text[prefix_end..];
+        if remainder.trim_start().is_empty() && !current.notes.is_empty() {
+            continue;
+        }
+
+        let punctuation = &raw_text[..prefix_end];
+        let fixed = format!(
+            "{}{}{}",
+            punctuation,
+            note_group_source(previous_group),
+            remainder
+        );
+        let fix_start = Position::new(
+            previous_group.range.start.line,
+            previous_group.range.start.character.saturating_sub(1),
+        );
+
+        out.push(
+            ParseError::new(
+                format!(
+                    "Punctuation '{}' appears after the previous note group in syllable '{}'; \
+                     move it before the parentheses or GregorioTeX may hyphenate the text incorrectly.",
+                    punctuation, current.text
+                ),
+                current.text_range,
+                Severity::Warning,
+            )
+            .with_code("punctuation-after-note-group")
+            .with_fix(TextFix {
+                range: Range::new(fix_start, current.text_range.end),
+                new_text: fixed,
+            }),
+        );
+    }
+    out
+}
 
 fn duplicate_syllable_center(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
@@ -820,6 +898,11 @@ pub const VALIDATE_DUPLICATE_SYLLABLE_CENTER: ValidationRule = ValidationRule {
     severity: Severity::Warning,
     validate: duplicate_syllable_center,
 };
+pub const VALIDATE_PUNCTUATION_AFTER_NOTE_GROUP: ValidationRule = ValidationRule {
+    name: "punctuation-after-note-group",
+    severity: Severity::Warning,
+    validate: punctuation_after_note_group,
+};
 pub const VALIDATE_CENTER_AFTER_PROTRUSION: ValidationRule = ValidationRule {
     name: "center-after-protrusion",
     severity: Severity::Warning,
@@ -907,6 +990,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_MODIFIERS_FUSED,
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
         &VALIDATE_DUPLICATE_SYLLABLE_CENTER,
+        &VALIDATE_PUNCTUATION_AFTER_NOTE_GROUP,
         &VALIDATE_CENTER_AFTER_PROTRUSION,
         &VALIDATE_UNMATCHED_CENTER_CLOSE,
         &VALIDATE_DUPLICATE_PROTRUSION,
