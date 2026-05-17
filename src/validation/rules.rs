@@ -676,8 +676,9 @@ fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
             continue;
         };
         let remainder = &raw_text[prefix_end..];
-        // A punctuation-only syllable with its own note group can be intentional,
-        // so only flag whitespace-only remainders when the punctuation is trailing text.
+        // A punctuation-only syllable with its own note group can be intentional.
+        // Only flag whitespace-only remainders when the punctuation is trailing text
+        // that was typed after the previous syllable's note group.
         if remainder.trim_start().is_empty() && !current.notes.is_empty() {
             continue;
         }
@@ -689,7 +690,7 @@ fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
             ParseError::new(
                 format!(
                     "Punctuation '{}' appears after the previous note group in syllable '{}'; \
-                     move it before the parentheses or GregorioTeX may hyphenate the text incorrectly.",
+                     move it before the previous syllable's parentheses or GregorioTeX may hyphenate the text incorrectly.",
                     punctuation, current.text
                 ),
                 current.text_range,

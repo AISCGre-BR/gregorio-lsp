@@ -256,6 +256,7 @@ fn line_break_at_end_of_score_custos_z0_is_not_flagged() {
 
 #[test]
 fn punctuation_after_note_group_has_fix() {
+    // Each offending syllable here follows an empty `()` group.
     let text = "name: Test;\n%%\nfoo(), bar(); baz():";
     let diags = lint(text);
     let punct_diags: Vec<_> = diags
