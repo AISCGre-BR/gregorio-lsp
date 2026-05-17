@@ -40,6 +40,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |
 | `line-break-at-end-of-score` | Warning | Forced line break (`z`/`Z` and variants) at end of score is ignored by GregorioTeX; auto-fixable by removing it |
 | `duplicate-syllable-center` | Warning | Syllable text contains multiple `{…}` forced-center markers; only the first is used |
+| `punctuation-after-note-group` | Warning | Punctuation typed after a note group (for example `foo(),`) should be placed before the parentheses (`foo,()`); auto-fixable |
 | `center-after-protrusion` | Warning | Forced center `{…}` appears after a `<pr>` protrusion; the center will be ignored |
 | `unmatched-center-close` | Warning | `}` without a matching `{` in syllable text; auto-fixable by removing the stray `}` |
 | `duplicate-protrusion` | Warning | More than one `<pr>` protrusion tag in a syllable; only the first is used; auto-fixable |

@@ -255,6 +255,68 @@ fn line_break_at_end_of_score_custos_z0_is_not_flagged() {
 }
 
 #[test]
+fn punctuation_after_note_group_has_fix() {
+    // Each offending syllable here follows an empty `()` group.
+    let text = "name: Test;\n%%\nfoo(), bar(); baz():";
+    let diags = lint(text);
+    let punct_diags: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code.as_deref() == Some("punctuation-after-note-group"))
+        .collect();
+
+    assert_eq!(
+        punct_diags.len(),
+        3,
+        "expected one diagnostic per misplaced punctuation mark"
+    );
+    assert_eq!(punct_diags[0].severity, Severity::Warning);
+    let first_fix = punct_diags[0].fix.as_ref().expect("expected first fix");
+    assert_eq!(first_fix.new_text, ",() bar");
+    assert_eq!(first_fix.range.start.line, 2);
+    assert_eq!(first_fix.range.start.character, 3);
+    assert_eq!(first_fix.range.end.line, 2);
+    assert_eq!(first_fix.range.end.character, 10);
+
+    let second_fix = punct_diags[1].fix.as_ref().expect("expected second fix");
+    assert_eq!(second_fix.new_text, ";() baz");
+    assert_eq!(second_fix.range.start.line, 2);
+    assert_eq!(second_fix.range.start.character, 10);
+    assert_eq!(second_fix.range.end.line, 2);
+    assert_eq!(second_fix.range.end.character, 17);
+
+    let third_fix = punct_diags[2].fix.as_ref().expect("expected third fix");
+    assert_eq!(third_fix.new_text, ":()");
+    assert_eq!(third_fix.range.start.line, 2);
+    assert_eq!(third_fix.range.start.character, 17);
+    assert_eq!(third_fix.range.end.line, 2);
+    assert_eq!(third_fix.range.end.character, 20);
+}
+
+#[test]
+fn punctuation_after_note_group_no_false_positive_when_punctuation_is_before_parentheses() {
+    let text = "name: Test;\n%%\nfoo,() bar;() baz:()";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("punctuation-after-note-group")),
+        "correct punctuation placement should not trigger the rule"
+    );
+}
+
+#[test]
+fn punctuation_after_note_group_no_false_positive_for_clean_or_internal_punctuation() {
+    let text = "name: Test;\n%%\nfoo() bar() foo,bar() foo.,()";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("punctuation-after-note-group")),
+        "clean syllables and punctuation already inside syllable text should not trigger the rule"
+    );
+}
+
+#[test]
 fn modifiers_in_fused_glyphs_has_fix() {
     let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|viS!ta)";
     let diags = lint(text);
