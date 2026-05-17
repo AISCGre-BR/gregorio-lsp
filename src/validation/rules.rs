@@ -647,6 +647,20 @@ fn note_group_source(group: &NoteGroup) -> String {
     text
 }
 
+fn trailing_note_group_source(syllable: &Syllable) -> Option<(Position, String)> {
+    if let Some(group) = syllable.notes.last() {
+        return Some((
+            Position::new(
+                group.range.start.line,
+                group.range.start.character.saturating_sub(1),
+            ),
+            note_group_source(group),
+        ));
+    }
+    (syllable.range.end != syllable.text_range.end)
+        .then_some((syllable.text_range.end, "()".into()))
+}
+
 // ---------- Syllable text-markup rules ----------
 
 fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
@@ -654,7 +668,7 @@ fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
     for window in doc.notation.syllables.windows(2) {
         let previous = &window[0];
         let current = &window[1];
-        let Some(previous_group) = previous.notes.last() else {
+        let Some((fix_start, previous_group_text)) = trailing_note_group_source(previous) else {
             continue;
         };
         let raw_text = syllable_raw_text(current);
@@ -667,16 +681,7 @@ fn punctuation_after_note_group(doc: &ParsedDocument) -> Vec<ParseError> {
         }
 
         let punctuation = &raw_text[..prefix_end];
-        let fixed = format!(
-            "{}{}{}",
-            punctuation,
-            note_group_source(previous_group),
-            remainder
-        );
-        let fix_start = Position::new(
-            previous_group.range.start.line,
-            previous_group.range.start.character.saturating_sub(1),
-        );
+        let fixed = format!("{}{}{}", punctuation, previous_group_text, remainder);
 
         out.push(
             ParseError::new(

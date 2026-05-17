@@ -263,7 +263,11 @@ fn punctuation_after_note_group_has_fix() {
         .filter(|d| d.code.as_deref() == Some("punctuation-after-note-group"))
         .collect();
 
-    assert_eq!(punct_diags.len(), 3, "expected one diagnostic per misplaced punctuation mark");
+    assert_eq!(
+        punct_diags.len(),
+        3,
+        "expected one diagnostic per misplaced punctuation mark"
+    );
     assert_eq!(punct_diags[0].severity, Severity::Warning);
     assert_eq!(
         punct_diags[0]
