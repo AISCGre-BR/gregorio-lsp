@@ -199,11 +199,11 @@ fn shift_group(
         let is_gabc = if nabc_lines == 0 {
             seg == 0
         } else {
-            seg % period == 0
+            seg.is_multiple_of(period)
         };
 
         if is_gabc && is_gabc_pitch(c) {
-            let in_range = byte_range.map_or(true, |r| r.contains(&byte_pos));
+            let in_range = byte_range.is_none_or(|r| r.contains(&byte_pos));
             result.push(if in_range { shift_pitch(c, dir) } else { c });
         } else {
             result.push(c);
@@ -316,7 +316,7 @@ pub fn fill_empty_groups(text: &str, byte_range: Option<std::ops::Range<usize>>)
         }
 
         if is_empty_group(&chars, inner) {
-            let in_range = byte_range.as_ref().map_or(true, |r| r.contains(&open_byte));
+            let in_range = byte_range.as_ref().is_none_or(|r| r.contains(&open_byte));
             if in_range {
                 if let Some(p) = last_pitch {
                     // Emit filled group.
@@ -405,7 +405,7 @@ fn last_gabc_pitch_in_group(
         let is_gabc = if nabc_lines == 0 {
             seg == 0
         } else {
-            seg % period == 0
+            seg.is_multiple_of(period)
         };
         if is_gabc && is_gabc_pitch(c) {
             last = Some(c);
