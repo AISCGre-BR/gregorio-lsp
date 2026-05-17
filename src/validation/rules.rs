@@ -240,7 +240,12 @@ fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> 
                 if pitch_value(n.pitch) >= pitch_value(note.pitch) {
                     out.push(
                         ParseError::new(
-                            "Oriscus followed by a note of equal or higher pitch may cause rendering issues",
+                            format!(
+                                "Oriscus on '{}' followed by a note of equal or higher pitch \
+                                 '{}': violates Gregorian semiological rule \
+                                 (oriscus must always lead to a lower note)",
+                                note.pitch, n.pitch
+                            ),
                             note.range,
                             Severity::Warning,
                         )

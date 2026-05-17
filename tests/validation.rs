@@ -502,20 +502,19 @@ fn unclosed_center_before_protrusion_no_false_positive_closed() {
 }
 
 // ============================================================
-// oriscus-higher-pitch (structural) and oriscus-equal-or-higher (semantic)
+// oriscus-higher-pitch
 // ============================================================
 
 #[test]
 fn oriscus_virga_strata_followed_by_higher_pitch_warns() {
     // (ggo) is virga strata: Punctum(g) + Oriscus(g). The oriscus is last in its
-    // group. The next group starts on 'h' (higher pitch) → should warn.
+    // group. The next group starts on 'h' (higher pitch) → semiological violation.
     let text = "name: Test;\n%%\n(c4) test(ggo) next(h)";
     let diags = lint(text);
     assert!(
-        diags.iter().any(|d| {
-            d.code.as_deref() == Some("oriscus-higher-pitch")
-                || d.code.as_deref() == Some("oriscus-equal-or-higher")
-        }),
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("oriscus-higher-pitch")),
         "virga strata followed by higher pitch must produce a diagnostic"
     );
 }
@@ -526,11 +525,26 @@ fn isolated_oriscus_followed_by_equal_pitch_warns() {
     let text = "name: Test;\n%%\n(c4) test(go) next(g)";
     let diags = lint(text);
     assert!(
-        diags.iter().any(|d| {
-            d.code.as_deref() == Some("oriscus-higher-pitch")
-                || d.code.as_deref() == Some("oriscus-equal-or-higher")
-        }),
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("oriscus-higher-pitch")),
         "isolated oriscus followed by equal pitch must produce a diagnostic"
+    );
+}
+
+#[test]
+fn oriscus_warning_message_mentions_semiological_rule() {
+    // The diagnostic message must reference the semiological rule, not rendering.
+    let text = "name: Test;\n%%\n(c4) test(go) next(h)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("oriscus-higher-pitch"))
+        .expect("expected oriscus-higher-pitch diagnostic");
+    assert!(
+        d.message.to_lowercase().contains("semiolog"),
+        "message should mention the semiological rule; got: {}",
+        d.message
     );
 }
 
@@ -541,10 +555,9 @@ fn oriscus_in_salicus_no_warning() {
     let text = "name: Test;\n%%\n(c4) test(fgoh)";
     let diags = lint(text);
     assert!(
-        !diags.iter().any(|d| {
-            d.code.as_deref() == Some("oriscus-higher-pitch")
-                || d.code.as_deref() == Some("oriscus-equal-or-higher")
-        }),
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("oriscus-higher-pitch")),
         "salicus (oriscus in middle) must not produce a diagnostic"
     );
 }
@@ -556,10 +569,9 @@ fn oriscus_in_pes_quassus_no_warning() {
     let text = "name: Test;\n%%\n(c4) test(goh)";
     let diags = lint(text);
     assert!(
-        !diags.iter().any(|d| {
-            d.code.as_deref() == Some("oriscus-higher-pitch")
-                || d.code.as_deref() == Some("oriscus-equal-or-higher")
-        }),
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("oriscus-higher-pitch")),
         "pes-quassus (oriscus followed by higher in same group) must not produce a diagnostic"
     );
 }
@@ -570,10 +582,9 @@ fn oriscus_followed_by_lower_pitch_no_warning() {
     let text = "name: Test;\n%%\n(c4) test(go) next(f)";
     let diags = lint(text);
     assert!(
-        !diags.iter().any(|d| {
-            d.code.as_deref() == Some("oriscus-higher-pitch")
-                || d.code.as_deref() == Some("oriscus-equal-or-higher")
-        }),
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("oriscus-higher-pitch")),
         "oriscus followed by lower pitch must not produce a diagnostic"
     );
 }
@@ -584,10 +595,9 @@ fn virga_strata_followed_by_lower_pitch_no_warning() {
     let text = "name: Test;\n%%\n(c4) test(ggo) next(f)";
     let diags = lint(text);
     assert!(
-        !diags.iter().any(|d| {
-            d.code.as_deref() == Some("oriscus-higher-pitch")
-                || d.code.as_deref() == Some("oriscus-equal-or-higher")
-        }),
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("oriscus-higher-pitch")),
         "virga strata followed by lower pitch must not produce a diagnostic"
     );
 }

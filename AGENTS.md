@@ -254,7 +254,7 @@ pub struct ValidationRule {
 | `nabc-without-header` | Error | NABC pipe `\|` without `nabc-lines` header |
 | `quilisma-lower-pitch` | Warning | Quilisma followed by equal/lower pitch |
 | `quilisma-pes-higher-pitch` | Warning | Quilisma-pes preceded by equal/higher pitch |
-| `oriscus-higher-pitch` | Warning | Oriscus at end of a neume (or isolated) followed by equal/higher pitch — covers virga strata and isolated oriscus; excludes salicus and pes-quassus |
+| `oriscus-higher-pitch` | Warning | Oriscus at end of a neume (or isolated) followed by equal/higher pitch — violates Gregorian semiological rule (oriscus must always lead to a lower note); covers virga strata and isolated oriscus; excludes salicus and pes-quassus |
 | `staff-lines` | Error | `staff-lines` value outside 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on last glyph in fusion |
@@ -284,7 +284,6 @@ context beyond a single note (preceding/following notes, syllable boundaries).
 | `oriscus-scapus-missing-subsequent` | Warning | `O` needs a subsequent note |
 | `quilisma-equal-or-lower` | Warning | Quilisma followed by lower/equal pitch |
 | `quilisma-pes-preceded-by-higher` | Warning | Quilisma-pes preceded by higher/equal pitch |
-| `oriscus-equal-or-higher` | Warning | Oriscus at end of a neume (or isolated) followed by equal/higher pitch — covers virga strata and isolated oriscus; excludes salicus and pes-quassus |
 | `pes-stratus-equal-or-higher` | Warning | Pes stratus ending with higher/equal following note |
 | `nabc-conflicting-liquescence` | Warning | Both `>` and `~` on same NABC descriptor |
 | `nabc-invalid-pitch` | Warning | Invalid NABC pitch letter |

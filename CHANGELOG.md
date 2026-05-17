@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Merged redundant `oriscus-equal-or-higher` (semantic) into the structural
+  `oriscus-higher-pitch` rule: the two checks were logically identical; only the
+  structural rule is retained. The diagnostic code remains `oriscus-higher-pitch`.
+- Corrected the warning message for `oriscus-higher-pitch`: the issue is not a
+  "rendering problem" but a violation of the Gregorian semiological rule — the
+  oriscus must always lead to a lower note. The new message reads:
+  *"Oriscus on '\{pitch\}' followed by a note of equal or higher pitch '\{next\}':
+  violates Gregorian semiological rule (oriscus must always lead to a lower note)"*.
+
 ## [0.7.0] - 2026-05-16
 
 ### Removed
