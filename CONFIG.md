@@ -19,6 +19,30 @@ The `gregorio-lsp` server accepts configuration via the LSP
 
     // Rule codes to ignore (e.g. "quilisma-missing-connector").
     "ignoreRules": []
+  },
+
+  "formatting": {
+    // Maximum output line width in characters. Default: 80.
+    // The formatter re-flows the notation body so that no line exceeds this limit.
+    // Existing inter-syllable whitespace (including source newlines) is replaced
+    // by the formatter's output; content inside parentheses is never modified.
+    "maxLineWidth": 80,
+
+    // When true, a blank line is inserted after each clef token (e.g. `(c4)`).
+    // Default: false.
+    // Example output with breakAfterClef: true:
+    //   (c4)
+    //
+    //   Foo(g) Bar(h)
+    "breakAfterClef": false,
+
+    // When true, a blank line is inserted after each bar token
+    // (`,`, `;`, `:`, `::`, etc.). Default: false.
+    // Example output with breakAfterBar: true:
+    //   Foo(g) (,)
+    //
+    //   Bar(h)
+    "breakAfterBar": false
   }
 }
 ```

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`grefmt` CLI formatter** (`src/bin/grefmt.rs`): a new standalone binary that
+  formats GABC source files.
+  - `-w`/`--width <n>`: maximum output line width (default: 80). The formatter
+    re-flows the notation body so that no source line exceeds this limit; existing
+    inter-syllable whitespace (including newlines) is replaced by the packer's
+    output. Content inside parentheses is never modified.
+  - `--break-after-clef`: inserts a blank line after each clef token (e.g. `(c4)`).
+  - `--break-after-bar`: inserts a blank line after each bar token (`,`, `;`, `:`,
+    `::`, etc.).
+  - `-c`/`--check`: exits with code 1 if any file would change without writing
+    anything; useful for CI checks.
+  - `-i`/`--in-place`: writes formatted output back to each file.
+  - Reads from stdin / writes to stdout when no files are given.
+- **`src/format` library module**: `format_gabc_text(text, &FormatOptions) -> String`
+  is the public entry point used by both `grefmt` and the LSP server. The header
+  section (before `%%`) is preserved verbatim except for trailing whitespace per line.
+- **LSP `textDocument/formatting`**: the `gregorio-lsp` server now advertises and
+  handles the `textDocument/formatting` capability. Editors that support
+  format-on-save (Helix, Neovim, VS Code, etc.) will call this handler, which
+  returns a single `TextEdit` replacing the whole document with the formatted text.
+- **Formatter configuration** in `workspace/didChangeConfiguration` under the
+  `"formatting"` key: `maxLineWidth` (integer), `breakAfterClef` (bool),
+  `breakAfterBar` (bool). See `CONFIG.md` for the full schema.
+
 ## [0.8.0] - 2026-05-16
 
 ### Fixed

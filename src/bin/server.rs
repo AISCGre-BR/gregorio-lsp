@@ -7,6 +7,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+use gregorio_lsp::format::{format_gabc_text, FormatOptions};
 use gregorio_lsp::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_lsp::note_ops::{fill_empty_groups, shift_notes, ShiftDirection};
 use gregorio_lsp::parser::types::Severity as PSeverity;
@@ -39,10 +40,28 @@ impl Default for LintingConfig {
     }
 }
 
+#[derive(Debug, Clone)]
+struct FormattingConfig {
+    max_line_width: usize,
+    break_after_clef: bool,
+    break_after_bar: bool,
+}
+
+impl Default for FormattingConfig {
+    fn default() -> Self {
+        Self {
+            max_line_width: 80,
+            break_after_clef: false,
+            break_after_bar: false,
+        }
+    }
+}
+
 struct Backend {
     client: Client,
     documents: Mutex<std::collections::HashMap<Url, String>>,
     config: Mutex<LintingConfig>,
+    formatting: Mutex<FormattingConfig>,
     #[cfg(feature = "tree-sitter")]
     ts_parser: Mutex<Option<TreeSitterParser>>,
     #[cfg(feature = "tree-sitter")]
@@ -55,6 +74,7 @@ impl Backend {
             client,
             documents: Mutex::new(std::collections::HashMap::new()),
             config: Mutex::new(LintingConfig::default()),
+            formatting: Mutex::new(FormattingConfig::default()),
             #[cfg(feature = "tree-sitter")]
             ts_parser: Mutex::new(TreeSitterParser::new()),
             #[cfg(feature = "tree-sitter")]
@@ -139,6 +159,7 @@ impl LanguageServer for Backend {
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 code_action_provider: Some(CodeActionProviderCapability::Options(
                     CodeActionOptions {
                         code_action_kinds: Some(vec![
@@ -202,6 +223,20 @@ impl LanguageServer for Backend {
                     .iter()
                     .filter_map(|v| v.as_str().map(str::to_owned))
                     .collect();
+            }
+        }
+        if let Some(fmt) = params.settings.get("formatting") {
+            let mut cfg = self.formatting.lock().unwrap();
+            if let Some(n) = fmt.get("maxLineWidth").and_then(Value::as_u64) {
+                if n > 0 {
+                    cfg.max_line_width = n as usize;
+                }
+            }
+            if let Some(b) = fmt.get("breakAfterClef").and_then(Value::as_bool) {
+                cfg.break_after_clef = b;
+            }
+            if let Some(b) = fmt.get("breakAfterBar").and_then(Value::as_bool) {
+                cfg.break_after_bar = b;
             }
         }
         let docs = { self.documents.lock().unwrap().clone() };
@@ -556,6 +591,40 @@ impl LanguageServer for Backend {
             Some(actions)
         })
     }
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
+        let text = {
+            self.documents
+                .lock()
+                .unwrap()
+                .get(&params.text_document.uri)
+                .cloned()
+        };
+        let Some(text) = text else {
+            return Ok(None);
+        };
+
+        let fmt_cfg = { self.formatting.lock().unwrap().clone() };
+        let opts = FormatOptions {
+            max_line_width: fmt_cfg.max_line_width,
+            break_after_clef: fmt_cfg.break_after_clef,
+            break_after_bar: fmt_cfg.break_after_bar,
+        };
+
+        let formatted = format_gabc_text(&text, &opts);
+        if formatted == text {
+            return Ok(Some(Vec::new()));
+        }
+
+        let (end_line, end_col) = doc_end(&text);
+        Ok(Some(vec![TextEdit {
+            range: Range {
+                start: Position::new(0, 0),
+                end: Position::new(end_line, end_col),
+            },
+            new_text: formatted,
+        }]))
+    }
+
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
         let arg = params.arguments.first().and_then(|v| v.as_object());
         let uri: Url = arg

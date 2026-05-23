@@ -22,6 +22,10 @@ path = "src/bin/server.rs"
 name = "grelint"
 path = "src/bin/lint.rs"
 
+[[bin]]
+name = "grefmt"
+path = "src/bin/grefmt.rs"
+
 [features]
 default = []
 tree-sitter = ["dep:tree-sitter", "dep:tree-sitter-gregorio"]
