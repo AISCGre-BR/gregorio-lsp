@@ -1,5 +1,5 @@
 {
-  description = "gregorio-lsp — dev shell with locally compiled binaries in PATH";
+  description = "gregorio-lsp — Language Server and tools for Gregorio GABC/NABC notation";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -23,8 +23,28 @@
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rustfmt" "clippy" ];
         };
+
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = rustToolchain;
+          rustc = rustToolchain;
+        };
       in
       {
+        packages.default = rustPlatform.buildRustPackage {
+          pname = "gregorio-lsp";
+          version = "0.9.2";
+          src = ./.;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            outputHashes = {
+              # tree-sitter-gregorio is an optional git dep (feature = "tree-sitter").
+              # Nix requires its hash even when the feature is not built.
+              "tree-sitter-gregorio-0.5.2" = "sha256-olYGpGIKSUp5IV+8jaNwuRDMB6pL6ITeCywfqBuVAp0=";
+            };
+          };
+        };
+
         devShells.default = pkgs.mkShell {
           packages = [
             rustToolchain

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-05-24
+
+### Fixed
+- LSP `textDocument/formatting`: `FormattingConfig::default()` now derives its
+  values from `FormatOptions::default()` instead of hardcoding `false` for
+  `break_after_clef` and `break_after_bar`. Previously the server used `false`
+  as the default for both options, so "Format Buffer" in editors that did not
+  send `workspace/didChangeConfiguration` produced output inconsistent with
+  `grefmt` (which defaults to `true` for both since 0.9.1).
+
+### Added
+- Nix flake: `packages.default` output (`nix build .#`) now builds all three
+  binaries (`gregorio-lsp`, `grefmt`, `grelint`) via `buildRustPackage`, using
+  the same `rust-overlay` toolchain as the dev shell.
+- New example file `examples/prefacio.gabc` for manual testing.
+
 ## [0.9.1] - 2026-05-23
 
 ### Fixed

@@ -49,10 +49,11 @@ struct FormattingConfig {
 
 impl Default for FormattingConfig {
     fn default() -> Self {
+        let lib = FormatOptions::default();
         Self {
-            max_line_width: 80,
-            break_after_clef: false,
-            break_after_bar: false,
+            max_line_width: lib.max_line_width,
+            break_after_clef: lib.break_after_clef,
+            break_after_bar: lib.break_after_bar,
         }
     }
 }
