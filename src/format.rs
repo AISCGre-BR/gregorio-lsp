@@ -14,9 +14,9 @@
 pub struct FormatOptions {
     /// Maximum output line width in characters. Default: 80.
     pub max_line_width: usize,
-    /// Insert a blank line after each clef token. Default: false.
+    /// Insert a blank line after each clef token. Default: true.
     pub break_after_clef: bool,
-    /// Insert a blank line after each bar token. Default: false.
+    /// Insert a blank line after each bar token. Default: true.
     pub break_after_bar: bool,
 }
 
@@ -24,8 +24,8 @@ impl Default for FormatOptions {
     fn default() -> Self {
         Self {
             max_line_width: 80,
-            break_after_clef: false,
-            break_after_bar: false,
+            break_after_clef: true,
+            break_after_bar: true,
         }
     }
 }
@@ -356,11 +356,13 @@ fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
         }
 
         // Apply break-after rules *after* placing the token.
-        // Emits a single line break (not a blank line).
-        let needs_break =
+        // Inserts a blank line (empty line) between the clef/bar and the
+        // following music, separating score sections visually.
+        let needs_blank =
             (opts.break_after_clef && token.is_clef()) || (opts.break_after_bar && token.is_bar());
-        if needs_break {
+        if needs_blank {
             emit(&mut lines, &mut current);
+            lines.push(String::new()); // blank line
         }
     }
 
@@ -594,7 +596,7 @@ mod tests {
     // ── break_after_clef ──────────────────────────────────────────────────
 
     #[test]
-    fn break_after_clef_inserts_line_break() {
+    fn break_after_clef_inserts_blank_line() {
         let input = "%%\n(c4) Foo(g) Bar(h)\n";
         let result = format_gabc_text(
             input,
@@ -604,21 +606,17 @@ mod tests {
                 break_after_bar: false,
             },
         );
-        // Clef must be on its own line, followed immediately (no blank line) by music.
+        // Clef must be on its own line followed by a blank line before the music.
         assert!(
-            result.contains("(c4)\nFoo(g)"),
-            "expected single line break after clef:\n{result}"
-        );
-        assert!(
-            !result.contains("(c4)\n\n"),
-            "unexpected blank line after clef:\n{result}"
+            result.contains("(c4)\n\nFoo(g)"),
+            "expected blank line after clef:\n{result}"
         );
     }
 
     // ── break_after_bar ───────────────────────────────────────────────────
 
     #[test]
-    fn break_after_bar_inserts_line_break() {
+    fn break_after_bar_inserts_blank_line() {
         let input = "%%\nFoo(g) (,) Bar(h)\n";
         let result = format_gabc_text(
             input,
@@ -629,12 +627,8 @@ mod tests {
             },
         );
         assert!(
-            result.contains("(,)\nBar(h)"),
-            "expected single line break after bar:\n{result}"
-        );
-        assert!(
-            !result.contains("(,)\n\n"),
-            "unexpected blank line after bar:\n{result}"
+            result.contains("(,)\n\nBar(h)"),
+            "expected blank line after bar:\n{result}"
         );
     }
 
