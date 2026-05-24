@@ -97,7 +97,7 @@ fn single_token_longer_than_limit_is_not_broken() {
 // ── break_after_clef ──────────────────────────────────────────────────────────
 
 #[test]
-fn break_after_clef_inserts_blank_line() {
+fn break_after_clef_inserts_line_break() {
     let input = "%%\n(c4) KY(f)ri(gh)e(h)\n";
     let result = format_gabc_text(
         input,
@@ -106,10 +106,14 @@ fn break_after_clef_inserts_blank_line() {
             ..Default::default()
         },
     );
-    // After the clef token there should be a blank line.
+    // Clef must be on its own line with no blank line before the music.
     assert!(
-        result.contains("(c4)\n\n"),
-        "expected blank line after clef:\n{result}"
+        result.contains("(c4)\nKY(f)"),
+        "expected single line break after clef:\n{result}"
+    );
+    assert!(
+        !result.contains("(c4)\n\n"),
+        "unexpected blank line after clef:\n{result}"
     );
 }
 
@@ -125,8 +129,12 @@ fn break_after_clef_all_clef_variants() {
             },
         );
         assert!(
-            result.contains(&format!("({clef})\n\n")),
-            "no blank line after clef {clef}:\n{result}"
+            result.contains(&format!("({clef})\nA(g)")),
+            "no line break after clef {clef}:\n{result}"
+        );
+        assert!(
+            !result.contains(&format!("({clef})\n\n")),
+            "unexpected blank line after clef {clef}:\n{result}"
         );
     }
 }
@@ -150,9 +158,8 @@ fn break_after_clef_disabled_no_blank_line() {
 // ── break_after_bar ───────────────────────────────────────────────────────────
 
 #[test]
-fn break_after_bar_inserts_blank_line_for_all_bar_types() {
-    let bars = [(",", "`"), (";", ";"), (":", ":"), ("::", "::")];
-    for (bar_notes, _desc) in &bars {
+fn break_after_bar_inserts_line_break_for_all_bar_types() {
+    for bar_notes in &[",", ";", ":", "::"] {
         let input = format!("%%\nFoo(g) ({bar_notes}) Bar(h)\n");
         let result = format_gabc_text(
             &input,
@@ -162,8 +169,12 @@ fn break_after_bar_inserts_blank_line_for_all_bar_types() {
             },
         );
         assert!(
-            result.contains(&format!("({bar_notes})\n\n")),
-            "no blank line after bar `{bar_notes}`:\n{result}"
+            result.contains(&format!("({bar_notes})\nBar(h)")),
+            "no line break after bar `{bar_notes}`:\n{result}"
+        );
+        assert!(
+            !result.contains(&format!("({bar_notes})\n\n")),
+            "unexpected blank line after bar `{bar_notes}`:\n{result}"
         );
     }
 }
@@ -193,10 +204,17 @@ fn break_after_clef_and_bar_combined() {
         },
     );
     assert!(
-        result.contains("(c4)\n\n"),
-        "no blank after clef:\n{result}"
+        result.contains("(c4)\nFoo(g)"),
+        "no line break after clef:\n{result}"
     );
-    assert!(result.contains("(,)\n\n"), "no blank after bar:\n{result}");
+    assert!(
+        result.contains("(,)\nBar(h)"),
+        "no line break after bar:\n{result}"
+    );
+    assert!(
+        !result.contains("(c4)\n\n") && !result.contains("(,)\n\n"),
+        "unexpected blank lines:\n{result}"
+    );
 }
 
 // ── Styled text and special markers ──────────────────────────────────────────

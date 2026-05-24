@@ -99,22 +99,35 @@ fn is_bar_notes(notes: &str) -> bool {
 
 // ── Tokenizer ─────────────────────────────────────────────────────────────────
 
-/// Tokenize the notation body (everything after `%%`).
+/// Tokenize the notation body (everything after `%%`), recording for each
+/// token whether it was immediately preceded by whitespace in the source.
 ///
-/// The tokenizer works at the text level — it does not invoke [`GabcParser`] —
-/// so the notation content inside parentheses is preserved byte-for-byte.
-fn tokenize(notation: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
+/// The boolean in each pair is `true` when there was at least one whitespace
+/// character between the previous token and this one (or when this is the first
+/// token). The packer uses this to decide whether a space should be placed
+/// between two adjacent tokens: tokens that had no whitespace between them in
+/// the source are kept adjacent in the output.
+fn tokenize_with_spacing(notation: &str) -> Vec<(Token, bool)> {
+    let mut entries: Vec<(Token, bool)> = Vec::new();
     let chars: Vec<char> = notation.chars().collect();
     let len = chars.len();
     let mut i = 0;
+    // True when whitespace has been seen since the last emitted token.
+    // Starts as `false`; the first token therefore carries `preceded = false`,
+    // which is irrelevant because the packer treats an empty `current` as a
+    // no-space case regardless.
+    let mut had_space = false;
 
     while i < len {
-        // Skip pure whitespace between tokens (we re-add it during packing).
         if chars[i].is_ascii_whitespace() {
+            had_space = true;
             i += 1;
             continue;
         }
+
+        // Capture and reset the spacing flag before consuming each token.
+        let preceded = had_space;
+        had_space = false;
 
         // Line comment: % … until end-of-line.
         if chars[i] == '%' {
@@ -122,9 +135,12 @@ fn tokenize(notation: &str) -> Vec<Token> {
             while i < len && chars[i] != '\n' {
                 i += 1;
             }
-            tokens.push(Token::Comment {
-                text: chars[start..i].iter().collect(),
-            });
+            entries.push((
+                Token::Comment {
+                    text: chars[start..i].iter().collect(),
+                },
+                preceded,
+            ));
             continue;
         }
 
@@ -135,9 +151,9 @@ fn tokenize(notation: &str) -> Vec<Token> {
             let raw = consume_styled_text(&chars, &mut i);
             if i < len && chars[i] == '(' {
                 let notes = consume_parens(&chars, &mut i);
-                tokens.push(Token::Syllable { text: raw, notes });
+                entries.push((Token::Syllable { text: raw, notes }, preceded));
             } else {
-                tokens.push(Token::StyledText { raw });
+                entries.push((Token::StyledText { raw }, preceded));
             }
             continue;
         }
@@ -145,16 +161,16 @@ fn tokenize(notation: &str) -> Vec<Token> {
         // Special single-character markers: * ** +
         if chars[i] == '*' {
             if i + 1 < len && chars[i + 1] == '*' {
-                tokens.push(Token::Special { raw: "**".into() });
+                entries.push((Token::Special { raw: "**".into() }, preceded));
                 i += 2;
             } else {
-                tokens.push(Token::Special { raw: "*".into() });
+                entries.push((Token::Special { raw: "*".into() }, preceded));
                 i += 1;
             }
             continue;
         }
         if chars[i] == '+' {
-            tokens.push(Token::Special { raw: "+".into() });
+            entries.push((Token::Special { raw: "+".into() }, preceded));
             i += 1;
             continue;
         }
@@ -162,7 +178,7 @@ fn tokenize(notation: &str) -> Vec<Token> {
         // Standalone note group: starts directly with `(`
         if chars[i] == '(' {
             let notes = consume_parens(&chars, &mut i);
-            tokens.push(Token::StandaloneGroup { notes });
+            entries.push((Token::StandaloneGroup { notes }, preceded));
             continue;
         }
 
@@ -175,14 +191,23 @@ fn tokenize(notation: &str) -> Vec<Token> {
         }
         if i < len && chars[i] == '(' {
             let notes = consume_parens(&chars, &mut i);
-            tokens.push(Token::Syllable { text, notes });
+            entries.push((Token::Syllable { text, notes }, preceded));
         } else {
             // Text without a following note group — treat as special/unknown token.
-            tokens.push(Token::Special { raw: text });
+            entries.push((Token::Special { raw: text }, preceded));
         }
     }
 
-    tokens
+    entries
+}
+
+/// Tokenize the notation body, discarding whitespace-spacing information.
+/// Used by unit tests that only need to inspect token identity.
+fn tokenize(notation: &str) -> Vec<Token> {
+    tokenize_with_spacing(notation)
+        .into_iter()
+        .map(|(token, _)| token)
+        .collect()
 }
 
 /// Consume characters that belong to a syllable text (everything that is not
@@ -278,12 +303,18 @@ fn consume_styled_text(chars: &[char], i: &mut usize) -> String {
 /// Pack a token stream into output lines respecting `max_line_width`.
 ///
 /// Rules applied here:
-/// - Tokens are separated by a single space on the same line.
-/// - When adding a token would exceed the limit, emit the current line and start fresh.
-/// - `break_after_clef` / `break_after_bar`: after the respective token, emit the
-///   current line and then a blank line.
-/// - Comment tokens always start on their own line and force a new line afterwards.
-fn pack(tokens: &[Token], opts: &FormatOptions) -> Vec<String> {
+/// - Tokens that were preceded by whitespace in the source are separated by a
+///   single space on the same line (or wrapped to the next line when the width
+///   limit would be exceeded).
+/// - Tokens that were **not** preceded by whitespace (adjacent in the source)
+///   are kept adjacent in the output — no space is inserted between them, and
+///   the line-width limit is not enforced across the boundary.
+/// - `break_after_clef` / `break_after_bar`: after the respective token, the
+///   current line is emitted and the next token starts on a new line
+///   (single line break, not a blank line).
+/// - Comment tokens always start on their own line and force a new line
+///   afterwards.
+fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut current = String::new();
 
@@ -293,7 +324,7 @@ fn pack(tokens: &[Token], opts: &FormatOptions) -> Vec<String> {
         current.clear();
     };
 
-    for token in tokens {
+    for (token, preceded_by_space) in entries {
         // Comments always go on their own line.
         if let Token::Comment { .. } = token {
             if !current.trim().is_empty() {
@@ -305,28 +336,31 @@ fn pack(tokens: &[Token], opts: &FormatOptions) -> Vec<String> {
 
         let display = token.display();
 
-        // Determine width if we append this token.
-        let candidate = if current.trim().is_empty() {
-            display.clone()
-        } else {
-            format!("{current} {display}")
-        };
-
-        if candidate.chars().count() > opts.max_line_width && !current.trim().is_empty() {
-            // Token does not fit — emit current line and start fresh.
-            emit(&mut lines, &mut current);
+        if current.trim().is_empty() {
+            // First token on this line: just place it, no leading space.
             current.push_str(&display);
+        } else if *preceded_by_space {
+            // Token was space-separated in the source: add a space, or wrap
+            // if the line would exceed the width limit.
+            let candidate = format!("{current} {display}");
+            if candidate.chars().count() > opts.max_line_width {
+                emit(&mut lines, &mut current);
+                current.push_str(&display);
+            } else {
+                current = candidate;
+            }
         } else {
-            current = candidate;
+            // Token was adjacent (no whitespace) in the source: keep adjacent.
+            // The width limit is not enforced here to preserve source intent.
+            current.push_str(&display);
         }
 
         // Apply break-after rules *after* placing the token.
-        let needs_blank =
+        // Emits a single line break (not a blank line).
+        let needs_break =
             (opts.break_after_clef && token.is_clef()) || (opts.break_after_bar && token.is_bar());
-
-        if needs_blank {
+        if needs_break {
             emit(&mut lines, &mut current);
-            lines.push(String::new()); // blank line
         }
     }
 
@@ -403,7 +437,7 @@ fn normalize_trailing_whitespace(text: &str) -> String {
 pub fn format_gabc_text(text: &str, opts: &FormatOptions) -> String {
     let (header, notation) = split_and_normalize_header(text);
 
-    let tokens = tokenize(notation);
+    let tokens = tokenize_with_spacing(notation);
     let packed = pack(&tokens, opts);
 
     let mut out = String::new();
@@ -560,7 +594,7 @@ mod tests {
     // ── break_after_clef ──────────────────────────────────────────────────
 
     #[test]
-    fn break_after_clef_inserts_blank_line() {
+    fn break_after_clef_inserts_line_break() {
         let input = "%%\n(c4) Foo(g) Bar(h)\n";
         let result = format_gabc_text(
             input,
@@ -570,17 +604,21 @@ mod tests {
                 break_after_bar: false,
             },
         );
-        // There should be a blank line between (c4) and Foo(g).
+        // Clef must be on its own line, followed immediately (no blank line) by music.
         assert!(
-            result.contains("(c4)\n\n"),
-            "expected blank line after clef:\n{result}"
+            result.contains("(c4)\nFoo(g)"),
+            "expected single line break after clef:\n{result}"
+        );
+        assert!(
+            !result.contains("(c4)\n\n"),
+            "unexpected blank line after clef:\n{result}"
         );
     }
 
     // ── break_after_bar ───────────────────────────────────────────────────
 
     #[test]
-    fn break_after_bar_inserts_blank_line() {
+    fn break_after_bar_inserts_line_break() {
         let input = "%%\nFoo(g) (,) Bar(h)\n";
         let result = format_gabc_text(
             input,
@@ -591,8 +629,35 @@ mod tests {
             },
         );
         assert!(
-            result.contains("(,)\n\n"),
-            "expected blank line after bar:\n{result}"
+            result.contains("(,)\nBar(h)"),
+            "expected single line break after bar:\n{result}"
+        );
+        assert!(
+            !result.contains("(,)\n\n"),
+            "unexpected blank line after bar:\n{result}"
+        );
+    }
+
+    // ── Whitespace-preserving packer ──────────────────────────────────────
+
+    #[test]
+    fn adjacent_syllables_no_space_preserved() {
+        // Syllables with no whitespace between them in the source must remain
+        // adjacent in the output — the formatter must not insert a space.
+        let result = format_gabc_text("%%\nfoo()bar()\n", &opts(80));
+        assert!(
+            result.contains("foo()bar()"),
+            "formatter must not add space between adjacent syllables:\n{result}"
+        );
+    }
+
+    #[test]
+    fn spaced_syllables_keep_space() {
+        // Syllables separated by whitespace must remain separated.
+        let result = format_gabc_text("%%\nfoo(g) bar(h)\n", &opts(80));
+        assert!(
+            result.contains("foo(g) bar(h)"),
+            "formatter must preserve space between space-separated syllables:\n{result}"
         );
     }
 
