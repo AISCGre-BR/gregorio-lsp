@@ -202,7 +202,8 @@ fn tokenize_with_spacing(notation: &str) -> Vec<(Token, bool)> {
 }
 
 /// Tokenize the notation body, discarding whitespace-spacing information.
-/// Used by unit tests that only need to inspect token identity.
+/// Available only in test builds; use `tokenize_with_spacing` in production code.
+#[cfg(test)]
 fn tokenize(notation: &str) -> Vec<Token> {
     tokenize_with_spacing(notation)
         .into_iter()
@@ -336,14 +337,21 @@ fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
 
         let display = token.display();
 
+        // A bar or clef that will trigger a forced break should never be
+        // moved to the start of the next line: always keep it at the END of
+        // the current line so that the blank line follows the bar/clef.
+        let is_break_token =
+            (opts.break_after_clef && token.is_clef()) || (opts.break_after_bar && token.is_bar());
+
         if current.trim().is_empty() {
             // First token on this line: just place it, no leading space.
             current.push_str(&display);
         } else if *preceded_by_space {
             // Token was space-separated in the source: add a space, or wrap
-            // if the line would exceed the width limit.
+            // if the line would exceed the width limit — but never wrap
+            // immediately before a bar/clef that will itself force a break.
             let candidate = format!("{current} {display}");
-            if candidate.chars().count() > opts.max_line_width {
+            if candidate.chars().count() > opts.max_line_width && !is_break_token {
                 emit(&mut lines, &mut current);
                 current.push_str(&display);
             } else {
@@ -652,6 +660,32 @@ mod tests {
         assert!(
             result.contains("foo(g) bar(h)"),
             "formatter must preserve space between space-separated syllables:\n{result}"
+        );
+    }
+
+    #[test]
+    fn bar_stays_at_end_of_line_when_line_would_exceed_limit() {
+        // With a very tight width limit, the bar must remain at the END of its
+        // line (triggering the blank-line break) rather than being pushed to
+        // the start of the next line.
+        let input = "%%\nA(g) B(h) C(i) D(j) (;) E(f) F(g)\n";
+        let result = format_gabc_text(
+            input,
+            &FormatOptions {
+                max_line_width: 20,
+                break_after_clef: false,
+                break_after_bar: true,
+            },
+        );
+        // The (;) must appear immediately before the blank line, not at the
+        // start of a new line.
+        assert!(
+            result.contains("(;)\n\n"),
+            "bar must be at end of line before blank:\n{result}"
+        );
+        assert!(
+            !result.contains("\n(;)\n"),
+            "bar must not appear at start of a line:\n{result}"
         );
     }
 

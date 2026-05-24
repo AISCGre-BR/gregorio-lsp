@@ -12,7 +12,7 @@ fn print_help() {
 \n\
 USAGE:\n    grefmt [OPTIONS] [FILES...]\n\
 \n\
-OPTIONS:\n    -w, --width <n>       Maximum line width (default: 80)\n        --break-after-clef  Insert a blank line after each clef token\n        --break-after-bar   Insert a blank line after each bar token\n    -c, --check           Exit 1 if any file would change; do not write output\n    -i, --in-place        Write formatted output back to each file\n    -h, --help            Print help\n    -V, --version         Print version\n\
+OPTIONS:\n    -w, --width <n>       Maximum line width (default: 80)\n        --break-after-clef  Insert a blank line after each clef token (default: on)\n        --break-after-bar   Insert a blank line after each bar token (default: on)\n    -c, --check           Exit 1 if any file would change; do not write output\n    -i, --in-place        Write formatted output back to each file\n    -h, --help            Print help\n    -V, --version         Print version\n\
 \n\
 If no FILES are given, reads from stdin and writes to stdout.\n\
 Exit codes: 0 = all files already formatted | 1 = --check found a diff | 2 = argument or I/O error",
@@ -23,9 +23,13 @@ Exit codes: 0 = all files already formatted | 1 = --check found a diff | 2 = arg
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     let mut files: Vec<PathBuf> = Vec::new();
-    let mut max_line_width: usize = 80;
-    let mut break_after_clef = false;
-    let mut break_after_bar = false;
+    // Initialise from FormatOptions::default() so that any change to the
+    // library defaults is automatically reflected in the CLI without needing
+    // to update this file.
+    let defaults = FormatOptions::default();
+    let mut max_line_width: usize = defaults.max_line_width;
+    let mut break_after_clef = defaults.break_after_clef;
+    let mut break_after_bar = defaults.break_after_bar;
     let mut check_mode = false;
     let mut in_place = false;
 
