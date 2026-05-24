@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-05-23
+
+### Fixed
+- `grefmt` / `format_gabc_text`: `break_after_clef` and `break_after_bar` now
+  default to `true` instead of `false`. With both options `false` the formatter
+  packed the entire score onto a single line, which is not useful as a default.
+  With the new defaults, formatting a score without explicit options produces the
+  natural section layout: clef on its own line, blank line, phrase, blank line
+  after each divisio, next phrase.
+- `grefmt` / `format_gabc_text`: adjacent tokens that had **no whitespace**
+  between them in the source (e.g. `foo()bar()`) are now kept adjacent in the
+  output. Previously the packer unconditionally inserted a space between every
+  pair of tokens, turning `foo()bar()` into `foo() bar()`.
+- `grefmt` / `format_gabc_text`: `break_after_clef` and `break_after_bar` now
+  correctly insert a **blank line** (empty line) between the clef/bar token and
+  the following music. A previous intermediate fix had incorrectly changed this
+  to a single newline.
+
 ## [0.9.0] - 2026-05-23
 
 ### Added

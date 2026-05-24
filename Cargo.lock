@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "gregorio-lsp"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "env_logger",
  "log",
