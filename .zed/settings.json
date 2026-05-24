@@ -1,0 +1,29 @@
+{
+  "languages": {
+    "GABC": {
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": {
+          "name": "gregorio-lsp"
+        }
+      }
+    }
+  },
+  "lsp": {
+    "gregorio-lsp": {
+      "settings": {
+        "linting": {
+          "enabled": true,
+          "severity": "info",
+          "onSave": false,
+          "ignoreRules": []
+        },
+        "formatting": {
+          "maxLineWidth": 80,
+          "breakAfterClef": true,
+          "breakAfterBar": true
+        }
+      }
+    }
+  }
+}

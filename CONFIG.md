@@ -29,20 +29,20 @@ The `gregorio-lsp` server accepts configuration via the LSP
     "maxLineWidth": 80,
 
     // When true, a blank line is inserted after each clef token (e.g. `(c4)`).
-    // Default: false.
+    // Default: true.
     // Example output with breakAfterClef: true:
     //   (c4)
     //
     //   Foo(g) Bar(h)
-    "breakAfterClef": false,
+    "breakAfterClef": true,
 
     // When true, a blank line is inserted after each bar token
-    // (`,`, `;`, `:`, `::`, etc.). Default: false.
+    // (`,`, `;`, `:`, `::`, etc.). Default: true.
     // Example output with breakAfterBar: true:
     //   Foo(g) (,)
     //
     //   Bar(h)
-    "breakAfterBar": false
+    "breakAfterBar": true
   }
 }
 ```
