@@ -364,7 +364,29 @@ fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
             // (this token + all immediately following non-spaced tokens) fits
             // on the current line before committing.
             let group = adjacent_group_chars(entries, i);
-            if current.chars().count() + 1 + group > opts.max_line_width {
+
+            // Lookahead: if the next space-separated token after this group is a
+            // bar, extend the measure to include it.  This prevents a bare bar
+            // from being pushed to the start of the next line — the anchor token
+            // wraps with it instead.  Only extend when anchor+bar could actually
+            // fit together on a fresh line (otherwise fall back to plain `group`).
+            let mut j = i + 1;
+            while j < entries.len() && !entries[j].1 {
+                j += 1;
+            }
+            let effective = if j < entries.len() && entries[j].0.is_bar() {
+                let bar_len = entries[j].0.display().chars().count();
+                let extended = group + 1 + bar_len;
+                if extended <= opts.max_line_width {
+                    extended
+                } else {
+                    group
+                }
+            } else {
+                group
+            };
+
+            if current.chars().count() + 1 + effective > opts.max_line_width {
                 emit!();
                 current.push_str(&display);
             } else {
@@ -694,6 +716,35 @@ mod tests {
         assert!(
             result.contains("(;)\n\n"),
             "bar must be followed by blank line:\n{result}"
+        );
+        for line in result.lines() {
+            assert!(
+                line.chars().count() <= 20,
+                "line exceeds max_line_width=20: {line:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn wrap_before_anchor_when_bar_would_start_next_line() {
+        // When placing a token would push the following bar to the start of the
+        // next line, the token itself should wrap instead so the bar stays at
+        // the end of the line with its anchor.
+        //   width=20: "A(g) B(h) C(i) D(j) (;)" — D(j) + (;) = 4+1+3=8; placing
+        //   D(j) on "A(g) B(h) C(i)" (14) → 14+1+8=23 > 20, so D(j) wraps.
+        //   Result must contain "D(j) (;)" on one line, not "(;)" alone.
+        let input = "%%\nA(g) B(h) C(i) D(j) (;) E(f)\n";
+        let result = format_gabc_text(
+            input,
+            &FormatOptions {
+                max_line_width: 20,
+                break_after_clef: false,
+                break_after_bar: true,
+            },
+        );
+        assert!(
+            result.contains("D(j) (;)\n\n"),
+            "anchor must wrap with bar, not leave bar at start of line:\n{result}"
         );
         for line in result.lines() {
             assert!(

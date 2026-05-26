@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-05-26
+
+### Fixed
+- `grefmt` / `format_gabc_text`: when the token that would be pushed to the
+  start of a new line is a bar (`(,)`, `(;)`, `(:)`, etc.), the packer now
+  wraps the preceding anchor token instead, keeping the bar at the end of the
+  line with its syllable. Previously, a bar could end up alone at the start of
+  a line like `\n(;)\n\n`; now the anchor wraps with it so the output is
+  `anchor (;)\n\n` on the new line. The fall-back to the old behavior is
+  preserved when anchor + bar together would exceed `max_line_width`.
+
 ## [0.9.3] - 2026-05-26
 
 ### Fixed
