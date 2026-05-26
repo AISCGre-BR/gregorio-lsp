@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2026-05-26
+
+### Fixed
+- `grefmt` / `format_gabc_text`: the line packer now respects `max_line_width`
+  correctly. Two bugs caused lines to exceed the limit:
+  1. The wrap decision did not account for adjacent (no-space) tokens following a
+     space-separated anchor token; the lookahead now measures the full adjacent
+     group so that an anchor that would push the line over the limit is wrapped
+     to the next line instead.
+  2. Bar and clef tokens were exempt from wrapping even when they would push the
+     current line over the limit; they now wrap like any other token, and the
+     blank-line separator is still emitted after them on their new line.
+
 ## [0.9.2] - 2026-05-24
 
 ### Fixed

@@ -301,77 +301,90 @@ fn consume_styled_text(chars: &[char], i: &mut usize) -> String {
 
 // ── Line packer ───────────────────────────────────────────────────────────────
 
+/// Returns the total char count of the token at `idx` plus all immediately
+/// following adjacent (not preceded-by-space) tokens.  Used for lookahead so
+/// the wrap decision accounts for the full indivisible group.
+fn adjacent_group_chars(entries: &[(Token, bool)], idx: usize) -> usize {
+    let mut total = entries[idx].0.display().chars().count();
+    let mut j = idx + 1;
+    while j < entries.len() && !entries[j].1 {
+        total += entries[j].0.display().chars().count();
+        j += 1;
+    }
+    total
+}
+
 /// Pack a token stream into output lines respecting `max_line_width`.
 ///
 /// Rules applied here:
-/// - Tokens that were preceded by whitespace in the source are separated by a
-///   single space on the same line (or wrapped to the next line when the width
-///   limit would be exceeded).
-/// - Tokens that were **not** preceded by whitespace (adjacent in the source)
-///   are kept adjacent in the output — no space is inserted between them, and
-///   the line-width limit is not enforced across the boundary.
-/// - `break_after_clef` / `break_after_bar`: after the respective token, the
-///   current line is emitted and the next token starts on a new line
-///   (single line break, not a blank line).
-/// - Comment tokens always start on their own line and force a new line
-///   afterwards.
+/// - Space-separated tokens are placed on the current line or wrapped to the
+///   next line.  The wrap decision uses the **full adjacent group** starting at
+///   the token (the token itself plus all immediately following non-spaced
+///   tokens) so that adjacent syllables are never split across a wrap boundary.
+/// - Adjacent tokens (no whitespace in the source) are always kept together;
+///   they are appended unconditionally after their leading space-separated
+///   anchor has been placed.
+/// - `break_after_clef` / `break_after_bar`: after the respective token a blank
+///   line is inserted.  If placing the bar/clef on the current line would exceed
+///   the width limit it wraps to the next line like any other token.
+/// - Comment tokens always start on their own line.
 fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut current = String::new();
 
-    let emit = |lines: &mut Vec<String>, current: &mut String| {
-        let trimmed = current.trim_end().to_string();
-        lines.push(trimmed);
-        current.clear();
-    };
+    // Inline emit to avoid borrow-checker friction with an explicit closure.
+    macro_rules! emit {
+        () => {{
+            lines.push(current.trim_end().to_string());
+            current.clear();
+        }};
+    }
 
-    for (token, preceded_by_space) in entries {
+    let mut i = 0;
+    while i < entries.len() {
+        let (token, preceded_by_space) = &entries[i];
+
         // Comments always go on their own line.
         if let Token::Comment { .. } = token {
             if !current.trim().is_empty() {
-                emit(&mut lines, &mut current);
+                emit!();
             }
             lines.push(token.display());
+            i += 1;
             continue;
         }
 
         let display = token.display();
 
-        // A bar or clef that will trigger a forced break should never be
-        // moved to the start of the next line: always keep it at the END of
-        // the current line so that the blank line follows the bar/clef.
-        let is_break_token =
-            (opts.break_after_clef && token.is_clef()) || (opts.break_after_bar && token.is_bar());
-
         if current.trim().is_empty() {
             // First token on this line: just place it, no leading space.
             current.push_str(&display);
         } else if *preceded_by_space {
-            // Token was space-separated in the source: add a space, or wrap
-            // if the line would exceed the width limit — but never wrap
-            // immediately before a bar/clef that will itself force a break.
-            let candidate = format!("{current} {display}");
-            if candidate.chars().count() > opts.max_line_width && !is_break_token {
-                emit(&mut lines, &mut current);
+            // Space-separated token: check whether the full adjacent group
+            // (this token + all immediately following non-spaced tokens) fits
+            // on the current line before committing.
+            let group = adjacent_group_chars(entries, i);
+            if current.chars().count() + 1 + group > opts.max_line_width {
+                emit!();
                 current.push_str(&display);
             } else {
-                current = candidate;
+                current.push(' ');
+                current.push_str(&display);
             }
         } else {
-            // Token was adjacent (no whitespace) in the source: keep adjacent.
-            // The width limit is not enforced here to preserve source intent.
+            // Adjacent token: keep together with the preceding token.
             current.push_str(&display);
         }
 
         // Apply break-after rules *after* placing the token.
-        // Inserts a blank line (empty line) between the clef/bar and the
-        // following music, separating score sections visually.
-        let needs_blank =
-            (opts.break_after_clef && token.is_clef()) || (opts.break_after_bar && token.is_bar());
+        let needs_blank = (opts.break_after_clef && token.is_clef())
+            || (opts.break_after_bar && token.is_bar());
         if needs_blank {
-            emit(&mut lines, &mut current);
-            lines.push(String::new()); // blank line
+            emit!();
+            lines.push(String::new()); // blank separator line
         }
+
+        i += 1;
     }
 
     if !current.trim().is_empty() {
@@ -664,10 +677,11 @@ mod tests {
     }
 
     #[test]
-    fn bar_stays_at_end_of_line_when_line_would_exceed_limit() {
-        // With a very tight width limit, the bar must remain at the END of its
-        // line (triggering the blank-line break) rather than being pushed to
-        // the start of the next line.
+    fn bar_triggers_blank_line_and_respects_width_limit() {
+        // With a very tight width limit, the bar must trigger a blank-line break
+        // AND no output line must exceed the limit.  When the bar doesn't fit on
+        // the preceding line it may legitimately be placed at the start of the
+        // next line — the important invariant is (;)\n\n (blank line after bar).
         let input = "%%\nA(g) B(h) C(i) D(j) (;) E(f) F(g)\n";
         let result = format_gabc_text(
             input,
@@ -677,16 +691,16 @@ mod tests {
                 break_after_bar: true,
             },
         );
-        // The (;) must appear immediately before the blank line, not at the
-        // start of a new line.
         assert!(
             result.contains("(;)\n\n"),
-            "bar must be at end of line before blank:\n{result}"
+            "bar must be followed by blank line:\n{result}"
         );
-        assert!(
-            !result.contains("\n(;)\n"),
-            "bar must not appear at start of a line:\n{result}"
-        );
+        for line in result.lines() {
+            assert!(
+                line.chars().count() <= 20,
+                "line exceeds max_line_width=20: {line:?}"
+            );
+        }
     }
 
     // ── Header preservation ───────────────────────────────────────────────
