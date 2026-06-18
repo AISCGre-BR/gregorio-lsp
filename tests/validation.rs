@@ -663,3 +663,139 @@ fn virga_strata_followed_by_lower_pitch_no_warning() {
         "virga strata followed by lower pitch must not produce a diagnostic"
     );
 }
+
+// ---------- <v>...</v> verbatim LaTeX blocks ----------
+
+#[test]
+fn verbatim_block_with_parens_does_not_create_spurious_notes() {
+    // LaTeX code inside <v>...</v> may contain '(' which must NOT be treated as a
+    // GABC note-group delimiter; only the real (fg) should be parsed as notes.
+    let text = "name: Test;\n%%\n(c4) Glo<v>\\LatexCmd(arg)</v>(fg)";
+    let doc = gregorio_lsp::parser::GabcParser::new(text).parse();
+    assert_eq!(
+        doc.notation.syllables.len(),
+        2,
+        "expected clef syllable + one lyric syllable"
+    );
+    let lyric = &doc.notation.syllables[1];
+    assert_eq!(lyric.notes.len(), 1, "expected exactly one note group");
+    let group = &lyric.notes[0];
+    assert_eq!(
+        group.notes.len(),
+        2,
+        "expected notes f and g only, not LaTeX content"
+    );
+    assert_eq!(group.notes[0].pitch, 'f');
+    assert_eq!(group.notes[1].pitch, 'g');
+}
+
+#[test]
+fn verbatim_only_syllable_no_false_positive_brace_rules() {
+    // A syllable whose text is entirely <v>...</v> (with curly braces in LaTeX)
+    // must not trigger duplicate-syllable-center or unmatched-center-close.
+    let text = "name: Test;\n%%\n(c4) <v>\\cmd{arg1}{arg2}</v>(fg)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("duplicate-syllable-center")),
+        "curly braces inside <v>...</v> must not trigger duplicate-syllable-center"
+    );
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("unmatched-center-close")),
+        "curly braces inside <v>...</v> must not trigger unmatched-center-close"
+    );
+}
+
+#[test]
+fn verbatim_block_gabc_nabc_rules_not_applied_to_latex_content() {
+    // Content inside <v>...</v> must not be validated as GABC or NABC notation.
+    // The quilisma rule would fire if 'w' inside the verbatim block were parsed as a note.
+    let text = "name: Test;\n%%\n(c4) <v>\\GW</v>(fg)";
+    let doc = gregorio_lsp::parser::GabcParser::new(text).parse();
+    let diags = gregorio_lsp::validation::DocumentValidator::new().validate(&doc);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.message.contains("Quilisma") || d.code.as_deref() == Some("quilisma-missing-note")),
+        "characters in <v>...</v> must not be interpreted as GABC note modifiers"
+    );
+    // Verify the actual notes: only f and g from (fg)
+    assert_eq!(doc.notation.syllables.len(), 2);
+    let lyric = &doc.notation.syllables[1];
+    assert_eq!(lyric.notes.len(), 1);
+    assert_eq!(lyric.notes[0].notes.len(), 2);
+}
+
+// ---------- <alt>...</alt> verbatim blocks ----------
+
+#[test]
+fn alt_block_with_parens_does_not_create_spurious_notes() {
+    // <alt>...</alt> content may contain '(' (e.g. a TeX macro call); that '('
+    // must NOT be treated as a GABC note-group delimiter.
+    let text = "name: Test;\n%%\n(c4) Glo<alt>\\above(text)</alt>(fg)";
+    let doc = gregorio_lsp::parser::GabcParser::new(text).parse();
+    assert_eq!(doc.notation.syllables.len(), 2);
+    let lyric = &doc.notation.syllables[1];
+    assert_eq!(lyric.notes.len(), 1, "only the real (fg) note group should exist");
+    assert_eq!(lyric.notes[0].notes.len(), 2);
+    assert_eq!(lyric.notes[0].notes[0].pitch, 'f');
+    assert_eq!(lyric.notes[0].notes[1].pitch, 'g');
+}
+
+// ---------- [nv/gv/ev:...] attributes with nested brackets ----------
+
+#[test]
+fn nv_attribute_with_nested_brackets_not_parsed_as_notes() {
+    // [nv:\someCmd[opt]{arg}] — the inner '[opt]' contains ']'; a naive find(']')
+    // would stop there and leave '{arg}]' to be re-parsed as GABC note content
+    // ('a', 'r', 'g' are all valid pitch letters and would generate spurious notes).
+    let text = "name: Test;\n%%\n(c4) test(fg [nv:\\cmd[opt]{arg}])";
+    let doc = gregorio_lsp::parser::GabcParser::new(text).parse();
+    // Locate the note group that contains the attribute
+    let all_groups: Vec<_> = doc
+        .notation
+        .syllables
+        .iter()
+        .flat_map(|s| s.notes.iter())
+        .collect();
+    let group_with_attr = all_groups
+        .iter()
+        .find(|g| g.attributes.as_ref().is_some_and(|a| !a.is_empty()));
+    let group_with_attr = group_with_attr.expect("expected a note group with [nv:...] attribute");
+    let attrs = group_with_attr.attributes.as_ref().unwrap();
+    assert_eq!(attrs.len(), 1, "expected exactly one attribute");
+    assert_eq!(attrs[0].name, "nv");
+    assert_eq!(
+        attrs[0].value.as_deref(),
+        Some("\\cmd[opt]{arg}"),
+        "attribute value must include the full LaTeX including the nested brackets"
+    );
+    // No spurious notes from the attribute content
+    let notes_in_group = &group_with_attr.notes;
+    assert!(
+        notes_in_group.iter().all(|n| matches!(n.pitch, 'f' | 'g')),
+        "note group must contain only f and g, not pitches from the LaTeX content"
+    );
+}
+
+#[test]
+fn gv_attribute_with_nested_brackets_not_parsed_as_notes() {
+    let text = "name: Test;\n%%\n(c4) test(f [gv:\\macro[a][b]])";
+    let doc = gregorio_lsp::parser::GabcParser::new(text).parse();
+    let all_groups: Vec<_> = doc
+        .notation
+        .syllables
+        .iter()
+        .flat_map(|s| s.notes.iter())
+        .collect();
+    let group = all_groups
+        .iter()
+        .find(|g| g.attributes.as_ref().is_some_and(|a| !a.is_empty()))
+        .expect("expected a note group with [gv:...] attribute");
+    let attrs = group.attributes.as_ref().unwrap();
+    assert_eq!(attrs[0].name, "gv");
+    assert_eq!(attrs[0].value.as_deref(), Some("\\macro[a][b]"));
+}

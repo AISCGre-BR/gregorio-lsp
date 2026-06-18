@@ -146,6 +146,18 @@ impl<'a> GabcParser<'a> {
                 self.advance(2);
                 continue;
             }
+            // <v>...</v> and <alt>...</alt> blocks may contain raw LaTeX; consume them
+            // without treating '(' inside as a note-group delimiter.  Both remove_style_tags
+            // and the GABC spec treat them as single-line, so stop at '\n' if the close
+            // tag is not found first.
+            if self.remaining_str().starts_with("<v>") {
+                self.consume_verbatim_tag("</v>", 4, &mut text_with_styles);
+                continue;
+            }
+            if self.remaining_str().starts_with("<alt>") {
+                self.consume_verbatim_tag("</alt>", 6, &mut text_with_styles);
+                continue;
+            }
             text_with_styles.push(ch);
             self.advance(1);
         }
@@ -162,11 +174,7 @@ impl<'a> GabcParser<'a> {
                     None
                 };
                 return Some(Syllable {
-                    text: if plain_text.is_empty() {
-                        trimmed.to_string()
-                    } else {
-                        plain_text
-                    },
+                    text: plain_text,
                     text_with_styles: with_styles,
                     text_range: Range::new(text_start, text_end),
                     notes: Vec::new(),
@@ -259,11 +267,7 @@ impl<'a> GabcParser<'a> {
         };
 
         Some(Syllable {
-            text: if plain_text.is_empty() {
-                trimmed.to_string()
-            } else {
-                plain_text
-            },
+            text: plain_text,
             text_with_styles: with_styles,
             text_range: Range::new(text_start, text_end),
             notes,
@@ -358,6 +362,28 @@ impl<'a> GabcParser<'a> {
     pub fn add_error(&mut self, message: impl Into<String>, range: Range, severity: Severity) {
         self.errors.push(ParseError::new(message, range, severity));
     }
+
+    /// Consume a verbatim inline block (e.g. `<v>...</v>` or `<alt>...</alt>`) into
+    /// `buf`, without treating any inner `(` as a note-group delimiter.
+    /// `close_tag` is the expected closing string; `close_chars` is its character length
+    /// (always ASCII for these tags, so char count == byte count).
+    /// Stops at `\n` if the close tag is not found first (consistent with how
+    /// `remove_style_tags` only matches single-line blocks).
+    fn consume_verbatim_tag(&mut self, close_tag: &str, close_chars: usize, buf: &mut String) {
+        while self.pos < self.text.len() {
+            let inner = self.peek_char();
+            if inner == '\n' {
+                break;
+            }
+            buf.push(inner);
+            self.advance(1);
+            if self.remaining_str().starts_with(close_tag) {
+                buf.push_str(close_tag);
+                self.advance(close_chars);
+                break;
+            }
+        }
+    }
 }
 
 // ---------- Free functions ----------
@@ -430,7 +456,26 @@ fn parse_attribute(text: &str, start: Position) -> Option<(GabcAttribute, usize)
     if !text.starts_with('[') {
         return None;
     }
-    let close = text.find(']')?;
+    // Use bracket-depth counting rather than a naive find(']') so that verbatim
+    // attributes like [nv:\cmd[inner]{...}] with nested brackets are consumed
+    // correctly; a naive search would stop at the first ']' inside the LaTeX value
+    // and leave the remainder to be mis-parsed as GABC note content.
+    let mut depth = 0usize;
+    let mut close = None;
+    for (byte_i, ch) in text.char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(byte_i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close = close?;
     let content = &text[1..close];
     let (name, value) = match content.find(':') {
         Some(i) => (
