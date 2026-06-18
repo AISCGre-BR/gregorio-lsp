@@ -500,6 +500,100 @@ fn gabc_has_bar_outside_attributes(gabc: &str) -> bool {
     false
 }
 
+/// Returns `true` if `gabc` contains at least one pitch letter that is a
+/// melody note — i.e. not part of a custos (`<pitch>+`, `+<pitch>`, `z0`),
+/// a line-break marker (`z`, `Z`, `z+`, `z-`, `Z+`, `Z-`), or a clef
+/// change (`[cf]b?[1-4]`).
+fn gabc_has_melody_notes(gabc: &str) -> bool {
+    let chars: Vec<char> = gabc.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+
+        // Whitespace and connectors
+        if matches!(ch, ' ' | '\t' | '\n' | '\r' | '/' | '`' | '!') {
+            i += 1;
+            continue;
+        }
+
+        // Attribute brackets — skip entire [...] block
+        if ch == '[' {
+            let mut depth = 0usize;
+            while i < chars.len() {
+                match chars[i] {
+                    '[' => { depth += 1; i += 1; }
+                    ']' => {
+                        depth -= 1;
+                        i += 1;
+                        if depth == 0 { break; }
+                    }
+                    _ => { i += 1; }
+                }
+            }
+            continue;
+        }
+
+        // Bar chars — skip (including ::)
+        if ch == ':' && chars.get(i + 1) == Some(&':') {
+            i += 2;
+            continue;
+        }
+        if matches!(ch, ',' | ';' | ':') {
+            i += 1;
+            continue;
+        }
+
+        // Explicit custos +<pitch>
+        if ch == '+' {
+            i += 1;
+            if matches!(chars.get(i).copied(), Some('a'..='n') | Some('p')) {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Auto-custos z0 (must come before the general z/Z line-break check)
+        if ch == 'z' && chars.get(i + 1) == Some(&'0') {
+            i += 2;
+            continue;
+        }
+
+        // Line-break markers: z/Z optionally followed by + or -
+        if matches!(ch, 'z' | 'Z') {
+            i += 1;
+            if matches!(chars.get(i).copied(), Some('+') | Some('-')) {
+                i += 1;
+            }
+            continue;
+        }
+
+        // Pitch letters (a-n, p, A-N, P)
+        if matches!(ch, 'a'..='n' | 'A'..='N' | 'p' | 'P') {
+            // Clef change: [cf]b?[1-4] (lowercase c or f only)
+            if matches!(ch, 'c' | 'f') {
+                let mut j = i + 1;
+                if chars.get(j) == Some(&'b') { j += 1; }
+                if matches!(chars.get(j).copied(), Some('1'..='4')) {
+                    i = j + 1;
+                    continue;
+                }
+            }
+
+            // Explicit custos <pitch>+ (lowercase pitch only)
+            if matches!(ch, 'a'..='n' | 'p') && chars.get(i + 1) == Some(&'+') {
+                i += 2;
+                continue;
+            }
+
+            // Everything else is a melody note
+            return true;
+        }
+
+        i += 1;
+    }
+    false
+}
+
 /// Split `gabc` into alternating (note-content, bar) segments at every bar
 /// character (`,`, `;`, `:`), treating `::` as a single unit. Content inside
 /// `[…]` attribute brackets is left untouched in the surrounding note segment.
@@ -598,7 +692,7 @@ fn bar_mixed_with_notes(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
         for note_group in &syllable.notes {
-            if note_group.notes.is_empty() {
+            if !gabc_has_melody_notes(&note_group.gabc) {
                 continue;
             }
             if !gabc_has_bar_outside_attributes(&note_group.gabc) {

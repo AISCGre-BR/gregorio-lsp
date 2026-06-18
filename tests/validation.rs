@@ -828,6 +828,58 @@ fn bar_mixed_with_notes_no_false_positive_bar_with_custos() {
 }
 
 #[test]
+fn bar_mixed_with_notes_no_false_positive_custos_f_plus_with_bar() {
+    // (::f+Z-) — bar + explicit custos f+ + line-break Z- — must NOT trigger
+    let text = "name: Test;\n%%\n(c4) test(fg) (::f+Z-)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(::f+Z-) has no melody notes and must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_no_false_positive_z0_bar_clef() {
+    // (z0::c3) — auto-custos + bar + clef change — must NOT trigger
+    let text = "name: Test;\n%%\n(c4) test(fg) (z0::c3) next(h)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(z0::c3) has no melody notes and must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_no_false_positive_explicit_custos_plus_pitch() {
+    // (+f,) — explicit custos in +<pitch> form combined with bar — must NOT trigger
+    let text = "name: Test;\n%%\n(c4) test(fg) (+f,)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(+f,) has no melody notes and must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_no_false_positive_line_break_with_bar() {
+    // (z,) — line-break + bar — must NOT trigger
+    let text = "name: Test;\n%%\n(c4) test(fg) (z,)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(z,) has no melody notes and must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
 fn bar_mixed_with_notes_no_false_positive_attribute_with_colon() {
     // [nv:\cmd:value] contains ':' inside brackets; must not trigger the rule.
     let text = "name: Test;\n%%\n(c4) test(fg [nv:\\cmd:value])";
