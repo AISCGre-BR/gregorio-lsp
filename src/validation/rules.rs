@@ -487,6 +487,138 @@ fn line_break_at_end_of_score(doc: &ParsedDocument) -> Vec<ParseError> {
     ]
 }
 
+fn gabc_has_bar_outside_attributes(gabc: &str) -> bool {
+    let mut depth = 0usize;
+    for ch in gabc.chars() {
+        match ch {
+            '[' => depth += 1,
+            ']' if depth > 0 => depth -= 1,
+            ',' | ';' | ':' if depth == 0 => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Split `gabc` into alternating (note-content, bar) segments at every bar
+/// character (`,`, `;`, `:`), treating `::` as a single unit. Content inside
+/// `[…]` attribute brackets is left untouched in the surrounding note segment.
+fn split_gabc_at_bars(gabc: &str) -> Vec<(bool, String)> {
+    let mut parts: Vec<(bool, String)> = Vec::new();
+    let mut current = String::new();
+    let chars: Vec<char> = gabc.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        if ch == '[' {
+            let mut depth = 0usize;
+            while i < chars.len() {
+                let c = chars[i];
+                current.push(c);
+                match c {
+                    '[' => depth += 1,
+                    ']' => {
+                        depth -= 1;
+                        i += 1;
+                        if depth == 0 {
+                            break;
+                        }
+                        continue;
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            continue;
+        }
+
+        if ch == ':' && chars.get(i + 1) == Some(&':') {
+            parts.push((false, std::mem::take(&mut current)));
+            parts.push((true, "::".to_string()));
+            i += 2;
+            continue;
+        }
+
+        if matches!(ch, ',' | ';' | ':') {
+            parts.push((false, std::mem::take(&mut current)));
+            parts.push((true, ch.to_string()));
+            i += 1;
+            continue;
+        }
+
+        current.push(ch);
+        i += 1;
+    }
+    parts.push((false, current));
+    parts
+}
+
+fn fix_bar_mixed_with_notes(note_group: &NoteGroup) -> TextFix {
+    let parts = split_gabc_at_bars(&note_group.gabc);
+    let mut groups: Vec<String> = Vec::new();
+    let mut nabc_attached = false;
+
+    for (is_bar, content) in &parts {
+        if *is_bar {
+            groups.push(format!("({})", content));
+        } else {
+            let trimmed = content.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let mut group = format!("({}", trimmed);
+            if !nabc_attached {
+                nabc_attached = true;
+                if let Some(nabc_lines) = &note_group.nabc {
+                    for line in nabc_lines {
+                        group.push('|');
+                        group.push_str(line);
+                    }
+                }
+            }
+            group.push(')');
+            groups.push(group);
+        }
+    }
+
+    let new_text = groups.join(" ");
+    let fix_start = Position::new(
+        note_group.range.start.line,
+        note_group.range.start.character.saturating_sub(1),
+    );
+    TextFix {
+        range: Range::new(fix_start, note_group.range.end),
+        new_text,
+    }
+}
+
+fn bar_mixed_with_notes(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        for note_group in &syllable.notes {
+            if note_group.notes.is_empty() {
+                continue;
+            }
+            if !gabc_has_bar_outside_attributes(&note_group.gabc) {
+                continue;
+            }
+            out.push(
+                ParseError::new(
+                    "Bar symbol mixed with notes in the same group; \
+                     bars must appear in their own group: (,) (;) (:) (::)",
+                    note_group.range,
+                    Severity::Warning,
+                )
+                .with_code("bar-mixed-with-notes")
+                .with_fix(fix_bar_mixed_with_notes(note_group)),
+            );
+        }
+    }
+    out
+}
+
 fn nabc_space_in_code(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
@@ -1029,6 +1161,12 @@ pub const VALIDATE_NABC_SPACE_IN_CODE: ValidationRule = ValidationRule {
     validate: nabc_space_in_code,
 };
 
+pub const VALIDATE_BAR_MIXED_WITH_NOTES: ValidationRule = ValidationRule {
+    name: "bar-mixed-with-notes",
+    severity: Severity::Warning,
+    validate: bar_mixed_with_notes,
+};
+
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
@@ -1044,6 +1182,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_MODIFIERS_FUSED,
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
         &VALIDATE_NABC_SPACE_IN_CODE,
+        &VALIDATE_BAR_MIXED_WITH_NOTES,
         &VALIDATE_DUPLICATE_SYLLABLE_CENTER,
         &VALIDATE_PUNCTUATION_AFTER_NOTE_GROUP,
         &VALIDATE_CENTER_AFTER_PROTRUSION,

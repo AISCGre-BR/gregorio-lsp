@@ -729,6 +729,129 @@ fn verbatim_block_gabc_nabc_rules_not_applied_to_latex_content() {
     assert_eq!(lyric.notes[0].notes.len(), 2);
 }
 
+// ---------- bar-mixed-with-notes ----------
+
+#[test]
+fn bar_mixed_with_notes_warns_comma_after_notes() {
+    let text = "name: Test;\n%%\n(c4) test(fg,)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(fg,) should trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_warns_semicolon_between_notes() {
+    let text = "name: Test;\n%%\n(c4) test(fh;i)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(fh;i) should trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_warns_colon_between_notes() {
+    let text = "name: Test;\n%%\n(c4) test(f:g)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "(f:g) should trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_fix_comma_after_notes() {
+    let text = "name: Test;\n%%\n(c4) test(fg,)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("bar-mixed-with-notes"))
+        .expect("expected bar-mixed-with-notes diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(fg) (,)");
+}
+
+#[test]
+fn bar_mixed_with_notes_fix_semicolon_between_notes() {
+    let text = "name: Test;\n%%\n(c4) test(fh;i)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("bar-mixed-with-notes"))
+        .expect("expected bar-mixed-with-notes diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(fh) (;) (i)");
+}
+
+#[test]
+fn bar_mixed_with_notes_fix_colon_between_notes() {
+    let text = "name: Test;\n%%\n(c4) test(f:g)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("bar-mixed-with-notes"))
+        .expect("expected bar-mixed-with-notes diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(f) (:) (g)");
+}
+
+#[test]
+fn bar_mixed_with_notes_no_false_positive_isolated_bar() {
+    let text = "name: Test;\n%%\n(c4) test(fg) (,) next(h)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "isolated bar in its own group must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_no_false_positive_bar_with_custos() {
+    let text = "name: Test;\n%%\n(c4) test(fg) (,z0) next(h)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "bar with custos and no pitch notes must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_no_false_positive_attribute_with_colon() {
+    // [nv:\cmd:value] contains ':' inside brackets; must not trigger the rule.
+    let text = "name: Test;\n%%\n(c4) test(fg [nv:\\cmd:value])";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "colon inside [...] attribute must not trigger bar-mixed-with-notes"
+    );
+}
+
+#[test]
+fn bar_mixed_with_notes_fix_double_colon() {
+    let text = "name: Test;\n%%\n(c4) test(fg::)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("bar-mixed-with-notes"))
+        .expect("expected bar-mixed-with-notes diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(fg) (::)");
+}
+
 // ---------- nabc-space-in-code ----------
 
 #[test]
