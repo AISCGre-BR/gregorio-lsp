@@ -729,6 +729,55 @@ fn verbatim_block_gabc_nabc_rules_not_applied_to_latex_content() {
     assert_eq!(lyric.notes[0].notes.len(), 2);
 }
 
+// ---------- nabc-space-in-code ----------
+
+#[test]
+fn nabc_space_in_code_warns_on_space() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f| vi hk)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("nabc-space-in-code"))
+        .expect("expected nabc-space-in-code diagnostic");
+    assert_eq!(d.severity, Severity::Warning);
+}
+
+#[test]
+fn nabc_space_in_code_has_fix_removing_spaces() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f| vi hk)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("nabc-space-in-code"))
+        .expect("expected nabc-space-in-code diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(f|vihk)");
+}
+
+#[test]
+fn nabc_space_in_code_no_false_positive_without_space() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(f|vihk)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("nabc-space-in-code")),
+        "NABC code without spaces must not trigger nabc-space-in-code"
+    );
+}
+
+#[test]
+fn nabc_space_in_code_fix_preserves_gabc_content() {
+    let text = "name: Test;\nnabc-lines: 1;\n%%\n(c4) test(fg| vi hk)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("nabc-space-in-code"))
+        .expect("expected nabc-space-in-code diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(fg|vihk)");
+}
+
 // ---------- <alt>...</alt> verbatim blocks ----------
 
 #[test]

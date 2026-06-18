@@ -487,6 +487,48 @@ fn line_break_at_end_of_score(doc: &ParsedDocument) -> Vec<ParseError> {
     ]
 }
 
+fn nabc_space_in_code(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        for note_group in &syllable.notes {
+            let Some(nabc_lines) = &note_group.nabc else {
+                continue;
+            };
+            if !nabc_lines.iter().any(|l| l.contains(' ')) {
+                continue;
+            }
+            let fixed_nabc: Vec<String> = nabc_lines
+                .iter()
+                .map(|l| l.chars().filter(|&c| c != ' ').collect())
+                .collect();
+            let mut new_text = String::from("(");
+            new_text.push_str(&note_group.gabc);
+            for line in &fixed_nabc {
+                new_text.push('|');
+                new_text.push_str(line);
+            }
+            new_text.push(')');
+            let fix_start = Position::new(
+                note_group.range.start.line,
+                note_group.range.start.character.saturating_sub(1),
+            );
+            out.push(
+                ParseError::new(
+                    "Whitespace inside NABC code is rendered incorrectly by Gregorio 6.2.0; remove spaces.",
+                    note_group.range,
+                    Severity::Warning,
+                )
+                .with_code("nabc-space-in-code")
+                .with_fix(TextFix {
+                    range: Range::new(fix_start, note_group.range.end),
+                    new_text,
+                }),
+            );
+        }
+    }
+    out
+}
+
 // ---------- Syllable text-markup helpers ----------
 
 /// Returns the raw (original, with style tags intact) text of a syllable.
@@ -981,6 +1023,12 @@ pub const VALIDATE_LINE_BREAK_AT_END_OF_SCORE: ValidationRule = ValidationRule {
     validate: line_break_at_end_of_score,
 };
 
+pub const VALIDATE_NABC_SPACE_IN_CODE: ValidationRule = ValidationRule {
+    name: "nabc-space-in-code",
+    severity: Severity::Warning,
+    validate: nabc_space_in_code,
+};
+
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
@@ -995,6 +1043,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
+        &VALIDATE_NABC_SPACE_IN_CODE,
         &VALIDATE_DUPLICATE_SYLLABLE_CENTER,
         &VALIDATE_PUNCTUATION_AFTER_NOTE_GROUP,
         &VALIDATE_CENTER_AFTER_PROTRUSION,
