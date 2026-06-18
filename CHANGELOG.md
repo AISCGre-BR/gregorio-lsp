@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-18
+
+### Added
+- New validation rule `nabc-space-in-code` (warning, auto-fixable): flags
+  whitespace inside NABC code blocks, which Gregorio 6.2.0 renders incorrectly.
+  The autofix removes the spaces.
+- New validation rule `bar-mixed-with-notes` (warning, auto-fixable): flags
+  GABC bar symbols (`,`, `;`, `:`, `::`) appearing in the same group as melody
+  notes. Custos, line-break markers, and clef changes alongside bars are
+  accepted. The autofix splits the group so each bar is isolated:
+  `(fg,hi)` → `(fg) (,) (hi)`.
+- New validation rule `line-break-not-at-end` (warning, auto-fixable): flags
+  any non-whitespace content appearing after a line-break marker (`z`, `Z`,
+  `z+`, `z-`, `Z+`, `Z-`) in a note group. `z0` (auto-custos) is not
+  treated as a line break. Two fix strategies are applied automatically:
+  - For bar-only groups: the lb marker is moved to the end of the group,
+    e.g. `(z,)` → `(,z)`.
+  - For note groups with melody notes: the group is split at the first lb,
+    e.g. `(fg z h)` → `(fg z) (h)`.
+
 ### Fixed
 - Parser: `<v>...</v>` and `<alt>...</alt>` blocks in syllable text are now
   consumed without treating `(` inside as a note-group delimiter, preventing
