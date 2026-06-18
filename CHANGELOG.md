@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Parser: `<v>...</v>` and `<alt>...</alt>` blocks in syllable text are now
+  consumed without treating `(` inside as a note-group delimiter, preventing
+  LaTeX code such as `\cmd(arg)` from being mis-parsed as GABC notes.
+- Parser: syllables whose text is entirely verbatim (`<v>...</v>` /
+  `<alt>...</alt>`) no longer expose raw LaTeX characters to text-markup
+  validation rules, eliminating false positives for `duplicate-syllable-center`,
+  `unmatched-center-close`, and related diagnostics.
+- Parser: note attributes `[nv:...]`, `[gv:...]`, `[ev:...]` (and any attribute
+  whose value contains nested brackets) are now parsed with bracket-depth
+  counting instead of a naive first-`]` search, so LaTeX such as
+  `[nv:\cmd[opt]{arg}]` is consumed correctly and its content is not
+  re-interpreted as GABC note pitches.
+
 ## [0.9.4] - 2026-05-26
 
 ### Fixed
