@@ -688,6 +688,231 @@ fn fix_bar_mixed_with_notes(note_group: &NoteGroup) -> TextFix {
     }
 }
 
+/// Returns `true` if there is any non-whitespace content AFTER a line-break
+/// marker (`z`, `Z`, `z+`, `z-`, `Z+`, `Z-`) in `gabc`, outside `[…]` brackets.
+/// `z0` (auto-custos) is not a line-break and is treated as regular content.
+fn gabc_has_content_after_line_break(gabc: &str) -> bool {
+    let chars: Vec<char> = gabc.chars().collect();
+    let mut i = 0;
+    let mut after_lb = false;
+    while i < chars.len() {
+        let ch = chars[i];
+
+        // Skip attribute brackets; their presence counts as content after lb
+        if ch == '[' {
+            let bracket_start = i;
+            let mut depth = 0usize;
+            while i < chars.len() {
+                match chars[i] {
+                    '[' => { depth += 1; i += 1; }
+                    ']' => { depth -= 1; i += 1; if depth == 0 { break; } }
+                    _ => { i += 1; }
+                }
+            }
+            if after_lb && i > bracket_start {
+                return true;
+            }
+            continue;
+        }
+
+        // Whitespace never triggers the flag
+        if ch.is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+
+        // z0 = auto-custos, not a line break
+        if ch == 'z' && chars.get(i + 1) == Some(&'0') {
+            if after_lb { return true; }
+            i += 2;
+            continue;
+        }
+
+        // Line-break markers: z, Z, z+, z-, Z+, Z-
+        if matches!(ch, 'z' | 'Z') {
+            after_lb = true;
+            i += 1;
+            if matches!(chars.get(i).copied(), Some('+') | Some('-')) {
+                i += 1;
+            }
+            continue;
+        }
+
+        if after_lb {
+            return true;
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Splits `content` into the non-line-break part and the line-break-marker
+/// part.  `z0` (auto-custos) is kept in the non-line-break part.
+fn separate_line_breaks(content: &str) -> (String, String) {
+    let chars: Vec<char> = content.chars().collect();
+    let mut i = 0;
+    let mut non_lb = String::new();
+    let mut lb = String::new();
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == 'z' && chars.get(i + 1) == Some(&'0') {
+            non_lb.push('z');
+            non_lb.push('0');
+            i += 2;
+            continue;
+        }
+        if matches!(ch, 'z' | 'Z') {
+            lb.push(ch);
+            i += 1;
+            if matches!(chars.get(i).copied(), Some('+') | Some('-')) {
+                lb.push(chars[i]);
+                i += 1;
+            }
+            continue;
+        }
+        non_lb.push(ch);
+        i += 1;
+    }
+    (non_lb, lb)
+}
+
+/// For bar-only groups (no melody notes): move all line-break markers to the end.
+/// E.g. `(z,)` → `(,z)`, `(z0 z,)` → `(z0 ,z)`.
+fn fix_reorder_lb_to_end(note_group: &NoteGroup) -> TextFix {
+    let (non_lb, lb) = separate_line_breaks(&note_group.gabc);
+    let inner = format!("{}{}", non_lb.trim(), lb);
+
+    let mut new_text = format!("({}", inner.trim_start());
+    if let Some(nabc_lines) = &note_group.nabc {
+        for line in nabc_lines {
+            new_text.push('|');
+            new_text.push_str(line);
+        }
+    }
+    new_text.push(')');
+
+    let fix_start = Position::new(
+        note_group.range.start.line,
+        note_group.range.start.character.saturating_sub(1),
+    );
+    TextFix {
+        range: Range::new(fix_start, note_group.range.end),
+        new_text,
+    }
+}
+
+/// For note groups (with melody notes): split at the first line-break marker.
+/// E.g. `(fgh z i)` → `(fgh z) (i)`.  NABC stays with the first group.
+fn fix_split_at_line_break(note_group: &NoteGroup) -> TextFix {
+    let chars: Vec<char> = note_group.gabc.chars().collect();
+    let mut i = 0;
+    let mut split_end: Option<usize> = None;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
+        if ch == '[' {
+            let mut depth = 0usize;
+            while i < chars.len() {
+                match chars[i] {
+                    '[' => { depth += 1; i += 1; }
+                    ']' => { depth -= 1; i += 1; if depth == 0 { break; } }
+                    _ => { i += 1; }
+                }
+            }
+            continue;
+        }
+
+        if ch == 'z' && chars.get(i + 1) == Some(&'0') {
+            i += 2;
+            continue;
+        }
+
+        if matches!(ch, 'z' | 'Z') {
+            i += 1;
+            if matches!(chars.get(i).copied(), Some('+') | Some('-')) {
+                i += 1;
+            }
+            split_end = Some(i);
+            break;
+        }
+
+        i += 1;
+    }
+
+    let fix_start = Position::new(
+        note_group.range.start.line,
+        note_group.range.start.character.saturating_sub(1),
+    );
+
+    let Some(split_end) = split_end else {
+        let orig: String = chars.iter().collect();
+        let mut new_text = format!("({}", orig);
+        if let Some(nabc_lines) = &note_group.nabc {
+            for line in nabc_lines {
+                new_text.push('|');
+                new_text.push_str(line);
+            }
+        }
+        new_text.push(')');
+        return TextFix {
+            range: Range::new(fix_start, note_group.range.end),
+            new_text,
+        };
+    };
+
+    let first_part: String = chars[..split_end].iter().collect();
+    let second_trimmed: String = chars[split_end..].iter().collect();
+    let second_trimmed = second_trimmed.trim();
+
+    let mut new_text = format!("({}", first_part.trim_end());
+    if let Some(nabc_lines) = &note_group.nabc {
+        for line in nabc_lines {
+            new_text.push('|');
+            new_text.push_str(line);
+        }
+    }
+    new_text.push(')');
+    if !second_trimmed.is_empty() {
+        new_text.push_str(&format!(" ({})", second_trimmed));
+    }
+
+    TextFix {
+        range: Range::new(fix_start, note_group.range.end),
+        new_text,
+    }
+}
+
+fn fix_line_break_not_at_end(note_group: &NoteGroup) -> TextFix {
+    if gabc_has_melody_notes(&note_group.gabc) {
+        fix_split_at_line_break(note_group)
+    } else {
+        fix_reorder_lb_to_end(note_group)
+    }
+}
+
+fn line_break_not_at_end(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        for note_group in &syllable.notes {
+            if !gabc_has_content_after_line_break(&note_group.gabc) {
+                continue;
+            }
+            out.push(
+                ParseError::new(
+                    "Line-break marker must appear at the end of a note group; \
+                     content after the line-break will be mispositioned.",
+                    note_group.range,
+                    Severity::Warning,
+                )
+                .with_code("line-break-not-at-end")
+                .with_fix(fix_line_break_not_at_end(note_group)),
+            );
+        }
+    }
+    out
+}
+
 fn bar_mixed_with_notes(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
@@ -1261,6 +1486,12 @@ pub const VALIDATE_BAR_MIXED_WITH_NOTES: ValidationRule = ValidationRule {
     validate: bar_mixed_with_notes,
 };
 
+pub const VALIDATE_LINE_BREAK_NOT_AT_END: ValidationRule = ValidationRule {
+    name: "line-break-not-at-end",
+    severity: Severity::Warning,
+    validate: line_break_not_at_end,
+};
+
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
@@ -1277,6 +1508,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
         &VALIDATE_NABC_SPACE_IN_CODE,
         &VALIDATE_BAR_MIXED_WITH_NOTES,
+        &VALIDATE_LINE_BREAK_NOT_AT_END,
         &VALIDATE_DUPLICATE_SYLLABLE_CENTER,
         &VALIDATE_PUNCTUATION_AFTER_NOTE_GROUP,
         &VALIDATE_CENTER_AFTER_PROTRUSION,

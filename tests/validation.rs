@@ -904,6 +904,167 @@ fn bar_mixed_with_notes_fix_double_colon() {
     assert_eq!(fix.new_text, "(fg) (::)");
 }
 
+// ---------- line-break-not-at-end ----------
+
+#[test]
+fn line_break_not_at_end_warns_z_before_comma() {
+    let text = "name: Test;\n%%\n(c4) test(fg) (z,)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(z,) should trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_warns_Z_plus_before_double_colon() {
+    let text = "name: Test;\n%%\n(c4) test(fg) (Z+::)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(Z+::) should trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_warns_lb_in_middle_of_notes() {
+    // (fg z h) — line break in middle of a note group: must trigger
+    let text = "name: Test;\n%%\n(c4) test(fg z h)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(fg z h) should trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_fix_z_before_comma() {
+    // bar group (no melody notes): reorder lb to end
+    let text = "name: Test;\n%%\n(c4) test(fg) (z,)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-not-at-end"))
+        .expect("expected line-break-not-at-end diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(,z)");
+}
+
+#[test]
+fn line_break_not_at_end_fix_z_plus_before_semicolon_with_custos() {
+    // (z+;f+) — bar group: lb z+ before semicolon, custos f+ after bar → (;f+z+)
+    let text = "name: Test;\n%%\n(c4) test(fg) (z+;f+)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-not-at-end"))
+        .expect("expected line-break-not-at-end diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(;f+z+)");
+}
+
+#[test]
+fn line_break_not_at_end_fix_z0_is_not_moved() {
+    // z0 is auto-custos, not a line break: (z0 z,) → (z0 ,z)
+    let text = "name: Test;\n%%\n(c4) test(fg) (z0 z,)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-not-at-end"))
+        .expect("expected line-break-not-at-end diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(z0 ,z)");
+}
+
+#[test]
+fn line_break_not_at_end_fix_lb_in_middle_of_notes() {
+    // note group: split at first lb position
+    let text = "name: Test;\n%%\n(c4) test(fg z h)";
+    let diags = lint(text);
+    let d = diags
+        .iter()
+        .find(|d| d.code.as_deref() == Some("line-break-not-at-end"))
+        .expect("expected line-break-not-at-end diagnostic");
+    let fix = d.fix.as_ref().expect("expected a fix");
+    assert_eq!(fix.new_text, "(fg z) (h)");
+}
+
+#[test]
+fn line_break_not_at_end_no_false_positive_lb_after_bar() {
+    let text = "name: Test;\n%%\n(c4) test(fg) (,z)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(,z) is correct order and must not trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_no_false_positive_custos_bar_lb() {
+    // (::f+Z-) — bar first, then custos f+, then line-break Z-: correct
+    let text = "name: Test;\n%%\n(c4) test(fg) (::f+Z-)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(::f+Z-) has line-break at end and must not trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_no_false_positive_z0_only() {
+    // z0 is auto-custos, not a line break: (z0,) must not trigger
+    let text = "name: Test;\n%%\n(c4) test(fg) (z0,)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(z0,) has only auto-custos before bar and must not trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_no_false_positive_lb_at_group_end() {
+    // (fg z) — lb at end of note group: correct, must not trigger
+    let text = "name: Test;\n%%\n(c4) test(fg z)";
+    let diags = lint(text);
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "(fg z) has lb at end of group and must not trigger line-break-not-at-end"
+    );
+}
+
+#[test]
+fn line_break_not_at_end_also_fires_alongside_bar_mixed_with_notes() {
+    // (fgz,) triggers bar-mixed-with-notes AND line-break-not-at-end
+    let text = "name: Test;\n%%\n(c4) test(fgz,)";
+    let diags = lint(text);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("line-break-not-at-end")),
+        "line-break-not-at-end must fire for (fgz,) even when bar-mixed-with-notes also fires"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_deref() == Some("bar-mixed-with-notes")),
+        "bar-mixed-with-notes must still fire for (fgz,)"
+    );
+}
+
 // ---------- nabc-space-in-code ----------
 
 #[test]
