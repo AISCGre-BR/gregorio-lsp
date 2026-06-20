@@ -1,0 +1,20 @@
+[package]
+name = "gregorio-cli"
+version = "0.11.0"
+edition = "2021"
+authors = ["AISCGre Brasil"]
+description = "CLI tools (grelint linter and grefmt formatter) for Gregorio GABC/NABC"
+license = "MIT"
+repository = "https://github.com/aiscgre-br/gregorio-lsp"
+
+[[bin]]
+name = "grelint"
+path = "src/bin/grelint.rs"
+
+[[bin]]
+name = "grefmt"
+path = "src/bin/grefmt.rs"
+
+[dependencies]
+gregorio-core = { path = "../gregorio-core" }
+serde_json = "1.0"

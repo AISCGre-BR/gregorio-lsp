@@ -1,51 +1,8 @@
-[package]
-name = "gregorio-lsp"
-version = "0.10.0"
-edition = "2021"
-authors = ["AISCGre Brasil"]
-description = "Language Server Protocol implementation for Gregorio GABC/NABC notation files"
-license = "MIT"
-keywords = ["lsp", "language-server", "gabc", "nabc", "gregorio"]
-categories = ["text-editors", "parser-implementations"]
-repository = "https://github.com/aiscgre-br/gregorio-lsp"
-readme = "README.md"
-
-[lib]
-name = "gregorio_lsp"
-path = "src/lib.rs"
-
-[[bin]]
-name = "gregorio-lsp"
-path = "src/bin/server.rs"
-
-[[bin]]
-name = "grelint"
-path = "src/bin/lint.rs"
-
-[[bin]]
-name = "grefmt"
-path = "src/bin/grefmt.rs"
-
-[features]
-default = []
-tree-sitter = ["dep:tree-sitter", "dep:tree-sitter-gregorio"]
-
-[dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-regex = "1.10"
-once_cell = "1.19"
-thiserror = "1.0"
-
-# LSP server stack
-tokio = { version = "1.36", features = ["rt-multi-thread", "io-std", "io-util", "macros", "sync"] }
-tower-lsp = "0.20"
-log = "0.4"
-env_logger = "0.11"
-
-# Optional tree-sitter support
-tree-sitter = { version = "~0.22", optional = true }
-tree-sitter-gregorio = { git = "https://github.com/aiscgre-br/tree-sitter-gregorio", tag = "v0.5.2", optional = true }
-
-[dev-dependencies]
-pretty_assertions = "1.4"
+[workspace]
+members = [
+    "crates/gregorio-core",
+    "crates/gregorio-server",
+    "crates/gregorio-cli",
+    "crates/gregorio-wasm",
+]
+resolver = "2"

@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-20
+
+### Added
+- **Cargo workspace** (`resolver = "2"`): the repository is now a multi-crate
+  workspace with four members:
+  - `crates/gregorio-core` — synchronous core library (parser, validator,
+    formatter, note-ops, ligature helpers, `body_start_byte`). No tokio or
+    tower-lsp dependencies; compiles to both native and `wasm32-unknown-unknown`.
+  - `crates/gregorio-server` — the `gregorio-lsp` LSP binary (tower-lsp/tokio),
+    unchanged protocol behaviour, now depends on `gregorio-core`.
+  - `crates/gregorio-cli` — `grelint` and `grefmt` binaries, now depend on
+    `gregorio-core`.
+  - `crates/gregorio-wasm` — new `cdylib`/`rlib` crate exposing `gregorio-core`
+    through `wasm-bindgen` for in-process use by the VS Code extension.
+- **`gregorio-wasm` WASM bindings** (built with `wasm-pack --target nodejs`):
+  `diagnostics`, `format`, `document_symbols`, `shift_notes_up`,
+  `shift_notes_down`, `fill_empty_groups_wasm`, `ligatures_to_tags`,
+  `tags_to_ligatures`, `nabc_lines`, `body_start_byte`. The `u32::MAX`
+  sentinel on `end_byte` signals "no range / shift entire body".
+- `ligatures_to_tags` / `tags_to_ligatures` helpers in `gregorio-core::note_ops`:
+  convert between `æ`/`ǽ`/`œ` Unicode ligatures and `<sp>ae</sp>` /
+  `<sp>'ae</sp>` / `<sp>oe</sp>` XML tags, ported from the VS Code extension's
+  former `transform.ts`.
+- `body_start_byte(text)` in `gregorio-core::note_ops`: returns the byte offset
+  of the first character after the `%%` header separator.
+
+### Changed
+- **Repository layout**: the previous flat `src/` tree becomes
+  `crates/gregorio-core/src/`. All source files are identical; `use crate::` and
+  `use super::` references required no changes.
+- The `tree-sitter` Cargo feature is now declared on `gregorio-core` and
+  re-exported by `gregorio-server` (`tree-sitter = ["gregorio-core/tree-sitter"]`).
+
 ## [0.10.0] - 2026-06-18
 
 ### Added
@@ -303,6 +336,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[0.11.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.4...v0.10.0
+[0.9.4]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.1...v0.9.2
+[0.9.1]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.7.1...v0.8.0
+[0.7.1]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/aiscgre-br/gregorio-lsp/releases/tag/v0.3.0
