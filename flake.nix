@@ -28,12 +28,19 @@
           cargo = rustToolchain;
           rustc = rustToolchain;
         };
-      in
-      {
-        packages.default = rustPlatform.buildRustPackage {
+
+        # Builds the whole workspace (gregorio-lsp, grelint, grefmt) in one
+        # derivation. gregorio-wasm is dropped from the workspace since it
+        # requires wasm-bindgen and only targets wasm32; keeping it would
+        # pull that dependency into native host builds for no benefit.
+        gregorio-lsp = rustPlatform.buildRustPackage {
           pname = "gregorio-lsp";
           version = "0.11.0";
           src = ./.;
+
+          postPatch = ''
+            sed -i '/gregorio-wasm/d' Cargo.toml
+          '';
 
           cargoLock = {
             lockFile = ./Cargo.lock;
@@ -43,6 +50,36 @@
               "tree-sitter-gregorio-0.5.2" = "sha256-olYGpGIKSUp5IV+8jaNwuRDMB6pL6ITeCywfqBuVAp0=";
             };
           };
+
+          meta = {
+            description = "Language Server, linter and formatter for Gregorio GABC/NABC notation";
+            homepage = "https://github.com/AISCGre-BR/gregorio-lsp";
+            license = pkgs.lib.licenses.mit;
+            mainProgram = "gregorio-lsp";
+          };
+        };
+      in
+      {
+        packages = {
+          inherit gregorio-lsp;
+
+          # Same build as gregorio-lsp; these just point mainProgram at the
+          # other workspace binaries so each tool is invokable on its own.
+          grelint = gregorio-lsp.overrideAttrs (old: {
+            meta = old.meta // {
+              description = "grelint — Gregorio GABC/NABC linter";
+              mainProgram = "grelint";
+            };
+          });
+
+          grefmt = gregorio-lsp.overrideAttrs (old: {
+            meta = old.meta // {
+              description = "grefmt — Gregorio GABC/NABC formatter";
+              mainProgram = "grefmt";
+            };
+          });
+
+          default = gregorio-lsp;
         };
 
         devShells.default = pkgs.mkShell {
