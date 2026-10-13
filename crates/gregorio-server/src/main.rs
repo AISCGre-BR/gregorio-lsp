@@ -388,7 +388,11 @@ impl LanguageServer for Backend {
         let mut symbols = Vec::new();
         for (name, value) in parsed.headers.iter() {
             let truncated: String = value.chars().take(30).collect();
-            let suffix = if value.chars().count() > 30 { "..." } else { "" };
+            let suffix = if value.chars().count() > 30 {
+                "..."
+            } else {
+                ""
+            };
             #[allow(deprecated)]
             symbols.push(DocumentSymbol {
                 name: format!("{name}: {truncated}{suffix}"),
@@ -413,13 +417,15 @@ impl LanguageServer for Backend {
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let mut actions: Vec<CodeActionOrCommand> = Vec::new();
 
-        if let Some(text) = {
-            self.documents
-                .lock()
-                .unwrap()
-                .get(&params.text_document.uri)
-                .cloned()
-        } {
+        // Clone the text in its own statement so the mutex guard is dropped
+        // before the code actions are computed.
+        let text = self
+            .documents
+            .lock()
+            .unwrap()
+            .get(&params.text_document.uri)
+            .cloned();
+        if let Some(text) = text {
             let is_selection = params.range.start != params.range.end;
             let byte_range = if is_selection {
                 lsp_range_to_byte_range(&text, params.range)
@@ -443,12 +449,18 @@ impl LanguageServer for Backend {
                 let mut changes = std::collections::HashMap::new();
                 changes.insert(
                     params.text_document.uri.clone(),
-                    vec![TextEdit { range: full_range, new_text }],
+                    vec![TextEdit {
+                        range: full_range,
+                        new_text,
+                    }],
                 );
                 actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                     title: title.to_string(),
                     kind: Some(CodeActionKind::new("source.gabc")),
-                    edit: Some(WorkspaceEdit { changes: Some(changes), ..Default::default() }),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
                     is_preferred: Some(false),
                     ..Default::default()
                 }));
@@ -469,12 +481,18 @@ impl LanguageServer for Backend {
                 let mut changes = std::collections::HashMap::new();
                 changes.insert(
                     params.text_document.uri.clone(),
-                    vec![TextEdit { range: full_range, new_text: filled_text }],
+                    vec![TextEdit {
+                        range: full_range,
+                        new_text: filled_text,
+                    }],
                 );
                 actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                     title: title.to_string(),
                     kind: Some(CodeActionKind::new("source.gabc")),
-                    edit: Some(WorkspaceEdit { changes: Some(changes), ..Default::default() }),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
                     is_preferred: Some(false),
                     ..Default::default()
                 }));
@@ -482,7 +500,9 @@ impl LanguageServer for Backend {
         }
 
         for diag in &params.context.diagnostics {
-            let Some(data) = diag.data.as_ref() else { continue };
+            let Some(data) = diag.data.as_ref() else {
+                continue;
+            };
             let Some(fix) = data.get("fix") else { continue };
             let (Some(sl), Some(sc), Some(el), Some(ec), Some(new_text)) = (
                 fix["start_line"].as_u64(),
@@ -500,19 +520,29 @@ impl LanguageServer for Backend {
             let mut changes = std::collections::HashMap::new();
             changes.insert(
                 params.text_document.uri.clone(),
-                vec![TextEdit { range: edit_range, new_text: new_text.to_string() }],
+                vec![TextEdit {
+                    range: edit_range,
+                    new_text: new_text.to_string(),
+                }],
             );
             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                 title: "Split into individual note groups".into(),
                 kind: Some(CodeActionKind::QUICKFIX),
                 diagnostics: Some(vec![diag.clone()]),
-                edit: Some(WorkspaceEdit { changes: Some(changes), ..Default::default() }),
+                edit: Some(WorkspaceEdit {
+                    changes: Some(changes),
+                    ..Default::default()
+                }),
                 is_preferred: Some(true),
                 ..Default::default()
             }));
         }
 
-        Ok(if actions.is_empty() { None } else { Some(actions) })
+        Ok(if actions.is_empty() {
+            None
+        } else {
+            Some(actions)
+        })
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
@@ -601,9 +631,18 @@ impl LanguageServer for Backend {
             end: Position::new(end_line, end_col),
         };
         let mut changes = std::collections::HashMap::new();
-        changes.insert(uri, vec![TextEdit { range: full_range, new_text }]);
+        changes.insert(
+            uri,
+            vec![TextEdit {
+                range: full_range,
+                new_text,
+            }],
+        );
         self.client
-            .apply_edit(WorkspaceEdit { changes: Some(changes), ..Default::default() })
+            .apply_edit(WorkspaceEdit {
+                changes: Some(changes),
+                ..Default::default()
+            })
             .await?;
 
         Ok(None)

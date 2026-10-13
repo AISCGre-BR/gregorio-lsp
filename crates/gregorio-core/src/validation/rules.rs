@@ -521,13 +521,20 @@ fn gabc_has_melody_notes(gabc: &str) -> bool {
             let mut depth = 0usize;
             while i < chars.len() {
                 match chars[i] {
-                    '[' => { depth += 1; i += 1; }
+                    '[' => {
+                        depth += 1;
+                        i += 1;
+                    }
                     ']' => {
                         depth -= 1;
                         i += 1;
-                        if depth == 0 { break; }
+                        if depth == 0 {
+                            break;
+                        }
                     }
-                    _ => { i += 1; }
+                    _ => {
+                        i += 1;
+                    }
                 }
             }
             continue;
@@ -572,7 +579,9 @@ fn gabc_has_melody_notes(gabc: &str) -> bool {
             // Clef change: [cf]b?[1-4] (lowercase c or f only)
             if matches!(ch, 'c' | 'f') {
                 let mut j = i + 1;
-                if chars.get(j) == Some(&'b') { j += 1; }
+                if chars.get(j) == Some(&'b') {
+                    j += 1;
+                }
                 if matches!(chars.get(j).copied(), Some('1'..='4')) {
                     i = j + 1;
                     continue;
@@ -704,9 +713,20 @@ fn gabc_has_content_after_line_break(gabc: &str) -> bool {
             let mut depth = 0usize;
             while i < chars.len() {
                 match chars[i] {
-                    '[' => { depth += 1; i += 1; }
-                    ']' => { depth -= 1; i += 1; if depth == 0 { break; } }
-                    _ => { i += 1; }
+                    '[' => {
+                        depth += 1;
+                        i += 1;
+                    }
+                    ']' => {
+                        depth -= 1;
+                        i += 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {
+                        i += 1;
+                    }
                 }
             }
             if after_lb && i > bracket_start {
@@ -723,7 +743,9 @@ fn gabc_has_content_after_line_break(gabc: &str) -> bool {
 
         // z0 = auto-custos, not a line break
         if ch == 'z' && chars.get(i + 1) == Some(&'0') {
-            if after_lb { return true; }
+            if after_lb {
+                return true;
+            }
             i += 2;
             continue;
         }
@@ -815,9 +837,20 @@ fn fix_split_at_line_break(note_group: &NoteGroup) -> TextFix {
             let mut depth = 0usize;
             while i < chars.len() {
                 match chars[i] {
-                    '[' => { depth += 1; i += 1; }
-                    ']' => { depth -= 1; i += 1; if depth == 0 { break; } }
-                    _ => { i += 1; }
+                    '[' => {
+                        depth += 1;
+                        i += 1;
+                    }
+                    ']' => {
+                        depth -= 1;
+                        i += 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {
+                        i += 1;
+                    }
                 }
             }
             continue;

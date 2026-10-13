@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The note-ops integration tests (`tests/note_ops.rs`), orphaned at the
   repository root since the workspace restructure and therefore no longer
   run, moved to `crates/gregorio-core/tests/note_ops.rs`.
+- CI lint job: fixed the Clippy errors (`blocks_in_conditions` in the server's
+  `code_action`, unused parameter in the WASM `byte_range` helper) and applied
+  `cargo fmt` to the workspace.
 
 ## [0.11.0] - 2026-06-20
 

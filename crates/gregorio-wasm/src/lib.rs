@@ -119,7 +119,11 @@ pub fn document_symbols(text: &str) -> String {
         .iter()
         .map(|(name, value)| {
             let truncated: String = value.chars().take(30).collect();
-            let suffix = if value.chars().count() > 30 { "..." } else { "" };
+            let suffix = if value.chars().count() > 30 {
+                "..."
+            } else {
+                ""
+            };
             serde_json::json!({ "name": format!("{name}: {truncated}{suffix}") })
         })
         .collect();
@@ -136,23 +140,23 @@ pub fn document_symbols(text: &str) -> String {
 /// Pass `0` and `u32::MAX` to shift the entire document body.
 #[wasm_bindgen]
 pub fn shift_notes_up(text: &str, start_byte: u32, end_byte: u32) -> String {
-    shift_notes(text, ShiftDirection::Up, byte_range(text, start_byte, end_byte))
+    shift_notes(text, ShiftDirection::Up, byte_range(start_byte, end_byte))
 }
 
 /// Shifts GABC pitch letters down by one step.
 #[wasm_bindgen]
 pub fn shift_notes_down(text: &str, start_byte: u32, end_byte: u32) -> String {
-    shift_notes(text, ShiftDirection::Down, byte_range(text, start_byte, end_byte))
+    shift_notes(text, ShiftDirection::Down, byte_range(start_byte, end_byte))
 }
 
 /// Fills empty `()` groups with the last known pitch letter.
 #[wasm_bindgen]
 pub fn fill_empty_groups_wasm(text: &str, start_byte: u32, end_byte: u32) -> String {
-    fill_empty_groups(text, byte_range(text, start_byte, end_byte))
+    fill_empty_groups(text, byte_range(start_byte, end_byte))
 }
 
 /// Returns `None` when start/end cover the whole document (sentinel: end == u32::MAX).
-fn byte_range(text: &str, start: u32, end: u32) -> Option<std::ops::Range<usize>> {
+fn byte_range(start: u32, end: u32) -> Option<std::ops::Range<usize>> {
     if end == u32::MAX {
         None
     } else {

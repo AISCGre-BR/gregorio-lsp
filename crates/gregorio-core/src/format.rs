@@ -399,8 +399,8 @@ fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
         }
 
         // Apply break-after rules *after* placing the token.
-        let needs_blank = (opts.break_after_clef && token.is_clef())
-            || (opts.break_after_bar && token.is_bar());
+        let needs_blank =
+            (opts.break_after_clef && token.is_clef()) || (opts.break_after_bar && token.is_bar());
         if needs_blank {
             emit!();
             lines.push(String::new()); // blank separator line
