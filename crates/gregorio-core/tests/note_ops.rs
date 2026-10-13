@@ -1,4 +1,4 @@
-use gregorio_lsp::note_ops::{
+use gregorio_core::note_ops::{
     fill_empty_groups, is_gabc_pitch, parse_nabc_lines, shift_notes, shift_pitch, ShiftDirection,
 };
 
@@ -500,4 +500,78 @@ fn test_fill_already_full_unchanged() {
     let text = "name: Test;\n%%\nKy(fgh)ri(e)e\n";
     let result = fill_empty_groups(text, None);
     assert_eq!(result, text, "Got: {result}");
+}
+
+// ---------------------------------------------------------------------------
+// Bracketed attributes [name:value] are not notes
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_shift_notes_skips_attribute_values() {
+    // Letters inside [...] attributes (ledger lines, episema tuning,
+    // above-lines text, choral signs, verbatim TeX) must not be shifted.
+    let text = "%%\n(fv[ll:1]) (g[oh:h]) (h[alt:abc]) (i[cs:fg]) (j[nv:\\hbox{}])\n";
+    let result = shift_notes(text, ShiftDirection::Up, None);
+    assert_eq!(
+        result, "%%\n(gv[ll:1]) (h[oh:h]) (i[alt:abc]) (j[cs:fg]) (k[nv:\\hbox{}])\n",
+        "Got: {result}"
+    );
+}
+
+#[test]
+fn test_shift_notes_skips_attribute_names() {
+    // Attribute names are letters too ([ob:1], [oslur:0;1mm,2mm], [shape:stroke]).
+    let text = "%%\n(f[ob:1]g) (g[shape:stroke])\n";
+    let result = shift_notes(text, ShiftDirection::Down, None);
+    assert_eq!(
+        result, "%%\n(e[ob:1]f) (f[shape:stroke])\n",
+        "Got: {result}"
+    );
+}
+
+#[test]
+fn test_shift_notes_skips_macros_and_nocustos() {
+    let text = "%%\n(f[nm1]g[nocustos]) (h[gm2])\n";
+    let result = shift_notes(text, ShiftDirection::Up, None);
+    assert_eq!(
+        result, "%%\n(g[nm1]h[nocustos]) (i[gm2])\n",
+        "Got: {result}"
+    );
+}
+
+#[test]
+fn test_shift_notes_shifts_fusion_brackets() {
+    // @[...] is a collective fusion of notes, not an attribute.
+    let text = "%%\n(f@[gh]i)\n";
+    let result = shift_notes(text, ShiftDirection::Up, None);
+    assert_eq!(result, "%%\n(g@[hi]j)\n", "Got: {result}");
+}
+
+#[test]
+fn test_shift_notes_attribute_does_not_hide_nabc_pipe() {
+    // A pipe after an attribute still starts the NABC segment.
+    let text = "nabc-lines: 1;\n%%\n(f[oh:h]|vi)\n";
+    let result = shift_notes(text, ShiftDirection::Up, None);
+    assert_eq!(
+        result, "nabc-lines: 1;\n%%\n(g[oh:h]|vi)\n",
+        "Got: {result}"
+    );
+}
+
+#[test]
+fn test_fill_ignores_attribute_letters() {
+    // The seed is the last real pitch, not a letter inside [...].
+    let text = "%%\n(f[oh:h]) () (g[alt:abc]) ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(
+        result, "%%\n(f[oh:h]) (f) (g[alt:abc]) (g)\n",
+        "Got: {result}"
+    );
+}
+
+#[test]
+fn test_fill_uses_fusion_pitches() {
+    let text = "%%\n(f@[gh]) ()\n";
+    let result = fill_empty_groups(text, None);
+    assert_eq!(result, "%%\n(f@[gh]) (h)\n", "Got: {result}");
 }

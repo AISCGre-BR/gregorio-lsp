@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `shift_notes` (Shift Notes Up/Down) no longer transposes letters inside
+  bracketed note attributes such as `[ll:1]`, `[oh:h]`, `[alt:abc]`,
+  `[cs:…]`, `[nv:…]`, `[nm1]` or `[nocustos]`; collective fusions `@[…]` are
+  still shifted. A `|` inside an attribute no longer starts a new GABC/NABC
+  segment.
+- `fill_empty_groups` no longer takes the fill pitch from a letter inside a
+  bracketed attribute (e.g. `(f[oh:h]) ()` now becomes `(f[oh:h]) (f)`).
+- The note-ops integration tests (`tests/note_ops.rs`), orphaned at the
+  repository root since the workspace restructure and therefore no longer
+  run, moved to `crates/gregorio-core/tests/note_ops.rs`.
+
 ## [0.11.0] - 2026-06-20
 
 ### Added

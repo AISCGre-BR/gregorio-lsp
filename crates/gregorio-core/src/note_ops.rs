@@ -75,8 +75,9 @@ pub fn shift_pitch(c: char, dir: ShiftDirection) -> char {
 ///
 /// Only pitch letters inside `(…)` groups after the `%%` separator are
 /// modified.  Clef patterns at the start of a group, NABC segments (as
-/// determined by the `nabc-lines` header), lyric text, and headers are left
-/// unchanged.
+/// determined by the `nabc-lines` header), bracketed attributes such as
+/// `[ll:1]` or `[nv:…]`, lyric text, and headers are left unchanged.
+/// Collective fusions (`@[…]`) are notes and are shifted.
 ///
 /// If `byte_range` is `Some(start..end)`, only pitch letters whose byte
 /// offset in `text` falls within that range are shifted (selection mode).
@@ -183,9 +184,18 @@ fn shift_group(
     //   otherwise                    →  NABC
     let period = nabc_lines + 1; // always >= 1; for nabc_lines==0, period==1 but guarded below
     let mut seg: usize = 0;
+    let mut attr = AttributeTracker::default();
 
     while *i < chars.len() && chars[*i].1 != ')' {
         let (byte_pos, c) = chars[*i];
+
+        // Bracketed attributes ([ll:1], [oh:h], [nv:…], [nm1], …) are copied
+        // verbatim: their letters are names and values, not pitches.
+        if attr.skip(chars, *i) {
+            result.push(c);
+            *i += 1;
+            continue;
+        }
 
         if c == '|' {
             seg += 1;
@@ -384,7 +394,8 @@ fn is_empty_group(chars: &[(usize, char)], start: usize) -> bool {
 ///
 /// Multi-NABC segmentation is respected: segment `k` is GABC iff
 /// `k mod (nabc_lines + 1) == 0` (with `nabc_lines == 0` meaning only
-/// segment 0 is GABC).  Returns `None` if no GABC pitch is found.
+/// segment 0 is GABC).  Letters inside bracketed attributes are ignored.
+/// Returns `None` if no GABC pitch is found.
 fn last_gabc_pitch_in_group(
     chars: &[(usize, char)],
     start: usize,
@@ -393,10 +404,15 @@ fn last_gabc_pitch_in_group(
     let period = nabc_lines + 1;
     let mut seg: usize = 0;
     let mut last: Option<char> = None;
+    let mut attr = AttributeTracker::default();
     let mut j = start;
 
     while j < chars.len() && chars[j].1 != ')' {
         let c = chars[j].1;
+        if attr.skip(chars, j) {
+            j += 1;
+            continue;
+        }
         if c == '|' {
             seg += 1;
             j += 1;
@@ -414,6 +430,44 @@ fn last_gabc_pitch_in_group(
     }
 
     last
+}
+
+// ---------------------------------------------------------------------------
+// Bracketed attributes
+// ---------------------------------------------------------------------------
+
+/// Tracks `[…]` attributes while scanning the content of a note group.
+///
+/// Attributes such as `[ll:1]`, `[oh:h]`, `[alt:abc]`, `[nv:\hbox{}]`,
+/// `[nm1]` or `[nocustos]` contain letters that are names and values, never
+/// pitches, and a `|` inside them does not start a new segment.  A `[`
+/// immediately after `@` opens a collective fusion (`@[fgh]`), whose
+/// content *is* notes, so it is not treated as an attribute.
+#[derive(Default)]
+struct AttributeTracker {
+    depth: usize,
+}
+
+impl AttributeTracker {
+    /// Updates the tracker with `chars[idx]` and returns `true` when that
+    /// character belongs to an attribute (including its brackets) and must
+    /// be left untouched.
+    fn skip(&mut self, chars: &[(usize, char)], idx: usize) -> bool {
+        let c = chars[idx].1;
+        if self.depth > 0 {
+            match c {
+                '[' => self.depth += 1,
+                ']' => self.depth -= 1,
+                _ => {}
+            }
+            return true;
+        }
+        if c == '[' && !(idx > 0 && chars[idx - 1].1 == '@') {
+            self.depth = 1;
+            return true;
+        }
+        false
+    }
 }
 
 // ---------------------------------------------------------------------------
