@@ -12,6 +12,6 @@ pub mod validation;
 #[cfg(feature = "tree-sitter")]
 pub mod tree_sitter_integration;
 
-pub use format::{format_gabc_text, FormatOptions};
+pub use format::{format_gabc_text, FormatOptions, WordPerLine};
 pub use lint::{lint_gabc_text, LintOptions, LintSeverity};
 pub use parser::types::{ParseError, ParsedDocument, Position, Range};

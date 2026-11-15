@@ -65,7 +65,8 @@ Example JSON configuration sent via `workspace/didChangeConfiguration`:
   "formatting": {
     "maxLineWidth": 80,
     "breakAfterClef": false,
-    "breakAfterBar": false
+    "breakAfterBar": false,
+    "wordPerLine": "auto"
   }
 }
 ```
@@ -107,6 +108,7 @@ grefmt -w 72 --break-after-clef --break-after-bar file.gabc
 | `-w`, `--width <n>` | `80` | Maximum output line width in characters |
 | `--break-after-clef` | off | Insert a blank line after each clef token, e.g. `(c4)` |
 | `--break-after-bar` | off | Insert a blank line after each bar token (`,`, `;`, `:`, `::`, …) |
+| `--word-per-line <mode>` | `auto` | One word per line: `auto`, `always` or `never` (see below) |
 | `-c`, `--check` | off | Verify formatting without writing; exits `1` if any file would change |
 | `-i`, `--in-place` | off | Write formatted output back to each input file |
 | `-h`, `--help` | — | Print help |
@@ -140,6 +142,15 @@ The formatter operates on the **notation body** (everything after `%%`). It:
    KY(f)ri(gh)e(h) (,)
 
    e(f)lé(gh)i(h)son(h.)
+   ```
+4. Places each word on its own line (`--word-per-line`). In `auto` mode (the
+   default) this happens when the `nabc-lines` header is 2 or greater, or when at
+   least 25% of the words are wider than half of `--width` — typical of long
+   GABC+NABC code such as the Graduale Triplex. Bars and `*` / `**` stay at the end
+   of the preceding word's line:
+   ```
+   DI(g|un|ta)le(g|un|ta)xí(hig|to|to)sti(gf|clG|cl-) *()
+   ju(g|un|vi)stí(gh|pe|pe)ti(j|un|ta)am,(j|un|ta) (;)
    ```
 
 The **header section** (before `%%`) is preserved verbatim except that trailing
