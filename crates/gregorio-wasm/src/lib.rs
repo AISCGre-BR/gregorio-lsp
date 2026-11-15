@@ -11,7 +11,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use gregorio_core::format::{format_gabc_text, FormatOptions};
+use gregorio_core::format::{format_gabc_text, FormatOptions, WordPerLine};
 use gregorio_core::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_core::note_ops::{
     body_start_byte as core_body_start_byte, fill_empty_groups, ligatures_to_tags as core_ltt,
@@ -84,6 +84,7 @@ fn diag_to_json(e: &gregorio_core::parser::types::ParseError) -> serde_json::Val
 /// - `"maxLineWidth"`: integer (default: 80)
 /// - `"breakAfterClef"`: boolean
 /// - `"breakAfterBar"`: boolean
+/// - `"wordPerLine"`: `"auto"` | `"always"` | `"never"`
 #[wasm_bindgen]
 pub fn format(text: &str, options_json: &str) -> String {
     let v: serde_json::Value = serde_json::from_str(options_json).unwrap_or_default();
@@ -102,6 +103,11 @@ pub fn format(text: &str, options_json: &str) -> String {
             .get("breakAfterBar")
             .and_then(|b| b.as_bool())
             .unwrap_or(defaults.break_after_bar),
+        word_per_line: v
+            .get("wordPerLine")
+            .and_then(|s| s.as_str())
+            .and_then(|s| s.parse::<WordPerLine>().ok())
+            .unwrap_or(defaults.word_per_line),
     };
     format_gabc_text(text, &opts)
 }

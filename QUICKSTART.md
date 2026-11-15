@@ -61,6 +61,7 @@ grefmt -w 72 --break-after-clef --break-after-bar file.gabc
 | `-w`, `--width <n>` | `80` | Maximum output line width |
 | `--break-after-clef` | off | Blank line after each clef token (e.g. `(c4)`) |
 | `--break-after-bar` | off | Blank line after each bar token (`,`, `;`, `:`, `::`, …) |
+| `--word-per-line <mode>` | `auto` | One word per line: `auto` (when `nabc-lines` ≥ 2 or ≥ 25% of words are wider than half the width), `always`, `never` |
 | `-c`, `--check` | off | Exits `1` if any file would change; writes nothing |
 | `-i`, `--in-place` | off | Writes formatted output back to each file |
 
@@ -101,7 +102,8 @@ Lint and formatting configuration is sent via `workspace/didChangeConfiguration`
   "formatting": {
     "maxLineWidth": 80,
     "breakAfterClef": false,
-    "breakAfterBar": false
+    "breakAfterBar": false,
+    "wordPerLine": "auto"
   }
 }
 ```

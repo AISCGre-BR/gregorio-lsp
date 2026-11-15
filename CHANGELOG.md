@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `grefmt` / `format_gabc_text`: new word-per-line layout
+  (`FormatOptions::word_per_line`, `WordPerLine::{Auto, Always, Never}`) that
+  places each word on its own line, keeping bars and `*` / `**` attached to the
+  preceding word. The default `Auto` mode enables it when the `nabc-lines`
+  header is 2 or greater, or when at least 25% of the words are wider than half
+  of `max_line_width` (long GABC+NABC code, e.g. Graduale Triplex). Exposed as
+  `grefmt --word-per-line <auto|always|never>` and as the `wordPerLine`
+  formatting setting in the LSP server and the WASM `format()` options.
+
 ### Fixed
 - `shift_notes` (Shift Notes Up/Down) no longer transposes letters inside
   bracketed note attributes such as `[ll:1]`, `[oh:h]`, `[alt:abc]`,

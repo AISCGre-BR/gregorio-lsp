@@ -7,7 +7,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use gregorio_core::format::{format_gabc_text, FormatOptions};
+use gregorio_core::format::{format_gabc_text, FormatOptions, WordPerLine};
 use gregorio_core::lint::{lint_gabc_text, LintOptions, LintSeverity};
 use gregorio_core::note_ops::{fill_empty_groups, shift_notes, ShiftDirection};
 use gregorio_core::parser::types::Severity as PSeverity;
@@ -45,6 +45,7 @@ struct FormattingConfig {
     max_line_width: usize,
     break_after_clef: bool,
     break_after_bar: bool,
+    word_per_line: WordPerLine,
 }
 
 impl Default for FormattingConfig {
@@ -54,6 +55,7 @@ impl Default for FormattingConfig {
             max_line_width: lib.max_line_width,
             break_after_clef: lib.break_after_clef,
             break_after_bar: lib.break_after_bar,
+            word_per_line: lib.word_per_line,
         }
     }
 }
@@ -238,6 +240,13 @@ impl LanguageServer for Backend {
             }
             if let Some(b) = fmt.get("breakAfterBar").and_then(Value::as_bool) {
                 cfg.break_after_bar = b;
+            }
+            if let Some(mode) = fmt
+                .get("wordPerLine")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<WordPerLine>().ok())
+            {
+                cfg.word_per_line = mode;
             }
         }
         let docs = { self.documents.lock().unwrap().clone() };
@@ -560,6 +569,7 @@ impl LanguageServer for Backend {
             max_line_width: fmt_cfg.max_line_width,
             break_after_clef: fmt_cfg.break_after_clef,
             break_after_bar: fmt_cfg.break_after_bar,
+            word_per_line: fmt_cfg.word_per_line,
         };
 
         let formatted = format_gabc_text(&text, &opts);

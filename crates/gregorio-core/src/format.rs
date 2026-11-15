@@ -8,6 +8,43 @@
 //! 3. Packs tokens into lines with a greedy algorithm respecting [`FormatOptions::max_line_width`].
 //! 4. Optionally inserts a blank line after each clef token ([`FormatOptions::break_after_clef`]).
 //! 5. Optionally inserts a blank line after each bar token ([`FormatOptions::break_after_bar`]).
+//! 6. Optionally places each word on its own line ([`FormatOptions::word_per_line`]),
+//!    which is useful for long GABC+NABC code (e.g. Graduale Triplex with two NABC lines).
+
+use std::str::FromStr;
+
+/// Controls the "one word per line" layout mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WordPerLine {
+    /// Enable automatically when the `nabc-lines` header is 2 or greater, or when
+    /// at least [`LONG_WORD_RATIO`] of the words are wider than half of
+    /// [`FormatOptions::max_line_width`].
+    #[default]
+    Auto,
+    /// Always place each word on its own line.
+    Always,
+    /// Never use word-per-line mode (greedy packing only).
+    Never,
+}
+
+impl FromStr for WordPerLine {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "auto" => Ok(Self::Auto),
+            "always" => Ok(Self::Always),
+            "never" => Ok(Self::Never),
+            other => Err(format!(
+                "invalid word-per-line mode '{other}' (expected auto, always or never)"
+            )),
+        }
+    }
+}
+
+/// Minimum fraction of long words (wider than half the maximum line width)
+/// that activates word-per-line mode under [`WordPerLine::Auto`].
+pub const LONG_WORD_RATIO: f64 = 0.25;
 
 /// Options controlling how the formatter behaves.
 #[derive(Debug, Clone)]
@@ -18,6 +55,8 @@ pub struct FormatOptions {
     pub break_after_clef: bool,
     /// Insert a blank line after each bar token. Default: true.
     pub break_after_bar: bool,
+    /// Place each word on its own line. Default: [`WordPerLine::Auto`].
+    pub word_per_line: WordPerLine,
 }
 
 impl Default for FormatOptions {
@@ -26,6 +65,7 @@ impl Default for FormatOptions {
             max_line_width: 80,
             break_after_clef: true,
             break_after_bar: true,
+            word_per_line: WordPerLine::Auto,
         }
     }
 }
@@ -75,6 +115,12 @@ impl Token {
             _ => return false,
         };
         is_bar_notes(notes)
+    }
+
+    /// Returns `true` for the `*` / `**` markers, which are kept on the line of
+    /// the preceding word in word-per-line mode.
+    fn is_asterisk(&self) -> bool {
+        matches!(self, Token::Special { raw } if raw == "*" || raw == "**")
     }
 }
 
@@ -328,7 +374,9 @@ fn adjacent_group_chars(entries: &[(Token, bool)], idx: usize) -> usize {
 ///   line is inserted.  If placing the bar/clef on the current line would exceed
 ///   the width limit it wraps to the next line like any other token.
 /// - Comment tokens always start on their own line.
-fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
+/// - `word_mode`: every space-separated word starts a new line, except bars and
+///   `*` / `**` markers, which stay at the end of the preceding word's line.
+fn pack(entries: &[(Token, bool)], opts: &FormatOptions, word_mode: bool) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut current = String::new();
 
@@ -358,6 +406,15 @@ fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
 
         if current.trim().is_empty() {
             // First token on this line: just place it, no leading space.
+            current.push_str(&display);
+        } else if *preceded_by_space && word_mode && !token.is_bar() && !token.is_asterisk() {
+            // Word-per-line mode: each word starts its own line.
+            emit!();
+            current.push_str(&display);
+        } else if *preceded_by_space && word_mode {
+            // Word-per-line mode: bars and `*` / `**` stay attached to the
+            // preceding word, even when the line exceeds the width limit.
+            current.push(' ');
             current.push_str(&display);
         } else if *preceded_by_space {
             // Space-separated token: check whether the full adjacent group
@@ -414,6 +471,56 @@ fn pack(entries: &[(Token, bool)], opts: &FormatOptions) -> Vec<String> {
     }
 
     lines
+}
+
+// ── Word-per-line detection ───────────────────────────────────────────────────
+
+/// Returns the value of the `nabc-lines` header (case-insensitive), or 0 when
+/// it is absent or invalid.
+fn header_nabc_lines(header: &str) -> usize {
+    header
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with('%'))
+        .find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            if !key.trim().eq_ignore_ascii_case("nabc-lines") {
+                return None;
+            }
+            let value = value.split(';').next().unwrap_or("").trim();
+            value.parse::<usize>().ok()
+        })
+        .unwrap_or(0)
+}
+
+/// Decide whether word-per-line mode applies to this document.
+fn use_word_per_line(header: &str, entries: &[(Token, bool)], opts: &FormatOptions) -> bool {
+    match opts.word_per_line {
+        WordPerLine::Always => return true,
+        WordPerLine::Never => return false,
+        WordPerLine::Auto => {}
+    }
+    if header_nabc_lines(header) >= 2 {
+        return true;
+    }
+
+    let threshold = opts.max_line_width / 2;
+    let mut words = 0usize;
+    let mut long_words = 0usize;
+    for (idx, (token, preceded)) in entries.iter().enumerate() {
+        // A word starts at the first token or at any space-separated token.
+        if idx > 0 && !*preceded {
+            continue;
+        }
+        if token.is_bar() || token.is_clef() || matches!(token, Token::Comment { .. }) {
+            continue;
+        }
+        words += 1;
+        if adjacent_group_chars(entries, idx) > threshold {
+            long_words += 1;
+        }
+    }
+    words > 0 && (long_words as f64) / (words as f64) >= LONG_WORD_RATIO
 }
 
 // ── Header normalizer ─────────────────────────────────────────────────────────
@@ -483,7 +590,8 @@ pub fn format_gabc_text(text: &str, opts: &FormatOptions) -> String {
     let (header, notation) = split_and_normalize_header(text);
 
     let tokens = tokenize_with_spacing(notation);
-    let packed = pack(&tokens, opts);
+    let word_mode = use_word_per_line(&header, &tokens, opts);
+    let packed = pack(&tokens, opts, word_mode);
 
     let mut out = String::new();
 
@@ -647,6 +755,7 @@ mod tests {
                 max_line_width: 80,
                 break_after_clef: true,
                 break_after_bar: false,
+                ..Default::default()
             },
         );
         // Clef must be on its own line followed by a blank line before the music.
@@ -667,6 +776,7 @@ mod tests {
                 max_line_width: 80,
                 break_after_clef: false,
                 break_after_bar: true,
+                ..Default::default()
             },
         );
         assert!(
@@ -711,6 +821,7 @@ mod tests {
                 max_line_width: 20,
                 break_after_clef: false,
                 break_after_bar: true,
+                ..Default::default()
             },
         );
         assert!(
@@ -740,6 +851,7 @@ mod tests {
                 max_line_width: 20,
                 break_after_clef: false,
                 break_after_bar: true,
+                ..Default::default()
             },
         );
         assert!(
@@ -777,5 +889,120 @@ mod tests {
         let result = format_gabc_text("%%\nA(g)\n", &opts(80));
         assert!(result.ends_with('\n'));
         assert!(!result.ends_with("\n\n"));
+    }
+
+    // ── word_per_line ─────────────────────────────────────────────────────
+
+    fn word_opts(mode: WordPerLine) -> FormatOptions {
+        FormatOptions {
+            word_per_line: mode,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn word_per_line_mode_parses_from_str() {
+        assert_eq!("auto".parse::<WordPerLine>(), Ok(WordPerLine::Auto));
+        assert_eq!("Always".parse::<WordPerLine>(), Ok(WordPerLine::Always));
+        assert_eq!(" never ".parse::<WordPerLine>(), Ok(WordPerLine::Never));
+        assert!("sometimes".parse::<WordPerLine>().is_err());
+    }
+
+    #[test]
+    fn word_per_line_always_one_word_per_line_with_bar_attached() {
+        let result = format_gabc_text("%%\nA(g) B(h) (,) C(i)\n", &word_opts(WordPerLine::Always));
+        assert_eq!(result, "%%\nA(g)\nB(h) (,)\n\nC(i)\n");
+    }
+
+    #[test]
+    fn word_per_line_keeps_asterisk_and_adjacent_syllables() {
+        let result = format_gabc_text(
+            "%%\nDi(g)le(g)xi(h) *() ju(g)sti(h)\n",
+            &word_opts(WordPerLine::Always),
+        );
+        assert_eq!(result, "%%\nDi(g)le(g)xi(h) *()\nju(g)sti(h)\n");
+    }
+
+    #[test]
+    fn word_per_line_keeps_comments_on_own_line() {
+        let result = format_gabc_text("%%\nA(g) % note\nB(h)\n", &word_opts(WordPerLine::Always));
+        assert_eq!(result, "%%\nA(g)\n% note\nB(h)\n");
+    }
+
+    #[test]
+    fn word_per_line_bar_stays_attached_beyond_width() {
+        let opts = FormatOptions {
+            max_line_width: 10,
+            word_per_line: WordPerLine::Always,
+            ..Default::default()
+        };
+        let result = format_gabc_text("%%\nLongword(ghijk) (;) B(h)\n", &opts);
+        assert!(
+            result.contains("Longword(ghijk) (;)\n\nB(h)"),
+            "bar must stay attached:\n{result}"
+        );
+    }
+
+    #[test]
+    fn word_per_line_never_ignores_nabc_header() {
+        let input = "nabc-lines:2;\n%%\nA(g|vi|vi) B(h|vi|vi)\n";
+        let result = format_gabc_text(input, &word_opts(WordPerLine::Never));
+        assert!(result.ends_with("%%\nA(g|vi|vi) B(h|vi|vi)\n"), "{result}");
+    }
+
+    #[test]
+    fn word_per_line_auto_activates_with_two_nabc_lines() {
+        let input = "name:X;\nnabc-lines:2;\n%%\nA(g|vi|vi) B(h|vi|vi)\n";
+        let result = format_gabc_text(input, &word_opts(WordPerLine::Auto));
+        assert!(result.ends_with("%%\nA(g|vi|vi)\nB(h|vi|vi)\n"), "{result}");
+    }
+
+    #[test]
+    fn word_per_line_auto_stays_off_with_one_nabc_line_and_short_words() {
+        let input = "nabc-lines:1;\n%%\nA(g|vi) B(h|vi)\n";
+        let result = format_gabc_text(input, &word_opts(WordPerLine::Auto));
+        assert!(result.ends_with("%%\nA(g|vi) B(h|vi)\n"), "{result}");
+    }
+
+    #[test]
+    fn word_per_line_auto_activates_on_long_words() {
+        // width 20 → threshold 10; 1 of 4 words is longer than 10 chars (25%).
+        let opts = FormatOptions {
+            max_line_width: 20,
+            word_per_line: WordPerLine::Auto,
+            ..Default::default()
+        };
+        let result = format_gabc_text("%%\nA(g) B(h) C(i) Long(ghijkl)\n", &opts);
+        assert!(
+            result.ends_with("%%\nA(g)\nB(h)\nC(i)\nLong(ghijkl)\n"),
+            "{result}"
+        );
+    }
+
+    #[test]
+    fn word_per_line_auto_stays_off_for_short_words() {
+        let result = format_gabc_text(
+            "%%\n(c4) A(g) B(h) C(i) (,) D(j)\n",
+            &word_opts(WordPerLine::Auto),
+        );
+        assert!(result.contains("A(g) B(h) C(i) (,)"), "{result}");
+    }
+
+    #[test]
+    fn word_per_line_is_idempotent() {
+        let input =
+            "nabc-lines:2;\n%%\n(c4) DI(g|un|ta)le(g|un|ta) *() ju(g|un|vi) (;) et(j|un|ta)\n";
+        let opts = word_opts(WordPerLine::Auto);
+        let once = format_gabc_text(input, &opts);
+        let twice = format_gabc_text(&once, &opts);
+        assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn nabc_lines_header_detection() {
+        assert_eq!(header_nabc_lines("name:X;\nnabc-lines:2;\n%%"), 2);
+        assert_eq!(header_nabc_lines("NABC-Lines : 3 ;\n"), 3);
+        assert_eq!(header_nabc_lines("% nabc-lines:2;\nname:X;\n"), 0);
+        assert_eq!(header_nabc_lines("name:X;\n"), 0);
     }
 }

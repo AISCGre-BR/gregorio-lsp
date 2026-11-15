@@ -42,7 +42,17 @@ The `gregorio-lsp` server accepts configuration via the LSP
     //   Foo(g) (,)
     //
     //   Bar(h)
-    "breakAfterBar": true
+    "breakAfterBar": true,
+
+    // Place each word on its own line: "auto" | "always" | "never".
+    // Default: "auto", which enables the mode when the `nabc-lines` header is
+    // 2 or greater (e.g. Graduale Triplex), or when at least 25% of the words
+    // are wider than half of maxLineWidth. Bars and `*` / `**` stay at the end
+    // of the preceding word's line.
+    // Example output with wordPerLine: "always":
+    //   DI(g|un|ta)le(g|un|ta)xí(hig|to|to)sti(gf|clG|cl-) *()
+    //   ju(g|un|vi)stí(gh|pe|pe)ti(j|un|ta)am,(j|un|ta) (;)
+    "wordPerLine": "auto"
   }
 }
 ```

@@ -4,7 +4,7 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use gregorio_core::format::{format_gabc_text, FormatOptions};
+use gregorio_core::format::{format_gabc_text, FormatOptions, WordPerLine};
 
 fn print_help() {
     eprintln!(
@@ -12,7 +12,7 @@ fn print_help() {
 \n\
 USAGE:\n    grefmt [OPTIONS] [FILES...]\n\
 \n\
-OPTIONS:\n    -w, --width <n>       Maximum line width (default: 80)\n        --break-after-clef  Insert a blank line after each clef token (default: on)\n        --break-after-bar   Insert a blank line after each bar token (default: on)\n    -c, --check           Exit 1 if any file would change; do not write output\n    -i, --in-place        Write formatted output back to each file\n    -h, --help            Print help\n    -V, --version         Print version\n\
+OPTIONS:\n    -w, --width <n>       Maximum line width (default: 80)\n        --break-after-clef  Insert a blank line after each clef token (default: on)\n        --break-after-bar   Insert a blank line after each bar token (default: on)\n        --word-per-line <mode>  One word per line: auto | always | never (default: auto)\n                            auto = enabled when nabc-lines >= 2, or when at least 25%\n                            of the words are wider than half of --width\n    -c, --check           Exit 1 if any file would change; do not write output\n    -i, --in-place        Write formatted output back to each file\n    -h, --help            Print help\n    -V, --version         Print version\n\
 \n\
 If no FILES are given, reads from stdin and writes to stdout.\n\
 Exit codes: 0 = all files already formatted | 1 = --check found a diff | 2 = argument or I/O error",
@@ -30,6 +30,7 @@ fn main() -> ExitCode {
     let mut max_line_width: usize = defaults.max_line_width;
     let mut break_after_clef = defaults.break_after_clef;
     let mut break_after_bar = defaults.break_after_bar;
+    let mut word_per_line: WordPerLine = defaults.word_per_line;
     let mut check_mode = false;
     let mut in_place = false;
 
@@ -47,6 +48,19 @@ fn main() -> ExitCode {
             "-i" | "--in-place" => in_place = true,
             "--break-after-clef" => break_after_clef = true,
             "--break-after-bar" => break_after_bar = true,
+            "--word-per-line" => match args.next() {
+                Some(s) => match s.parse::<WordPerLine>() {
+                    Ok(mode) => word_per_line = mode,
+                    Err(e) => {
+                        eprintln!("error: --word-per-line: {e}");
+                        return ExitCode::from(2);
+                    }
+                },
+                None => {
+                    eprintln!("error: --word-per-line requires a value (auto, always or never)");
+                    return ExitCode::from(2);
+                }
+            },
             "-w" | "--width" => match args.next() {
                 Some(s) => match s.parse::<usize>() {
                     Ok(n) if n > 0 => max_line_width = n,
@@ -77,6 +91,7 @@ fn main() -> ExitCode {
         max_line_width,
         break_after_clef,
         break_after_bar,
+        word_per_line,
     };
 
     if files.is_empty() {
