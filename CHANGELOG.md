@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-15
+
 ### Added
 - Security workflows: CodeQL analysis of the Rust sources and GitHub Actions
   (`codeql.yml`), Dependency Review on pull requests (`dependency-review.yml`)
@@ -21,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of `max_line_width` (long GABC+NABC code, e.g. Graduale Triplex). Exposed as
   `grefmt --word-per-line <auto|always|never>` and as the `wordPerLine`
   formatting setting in the LSP server and the WASM `format()` options.
+- Nix flake: `gregorio-lsp`, `grelint` and `grefmt` are exposed as separate
+  packages (`gregorio-lsp` remains the default).
+
+### Security
+- Updated `tokio` from 1.52.1 to 1.54.1, fixing RUSTSEC-2026-0386
+  (`AsyncFd::new` and related constructors violate I/O safety).
 
 ### Fixed
 - `shift_notes` (Shift Notes Up/Down) no longer transposes letters inside
@@ -366,6 +374,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[Unreleased]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.4...v0.10.0
 [0.9.4]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.3...v0.9.4

@@ -1,6 +1,6 @@
 [package]
 name = "gregorio-core"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2021"
 authors = ["AISCGre Brasil"]
 description = "Core GABC/NABC parser, validator, formatter and transformations for Gregorio tooling"

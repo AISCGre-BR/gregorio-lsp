@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "gregorio-cli"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "gregorio-core",
  "serde_json",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "gregorio-core"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "once_cell",
  "pretty_assertions",
@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "gregorio-server"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "env_logger",
  "gregorio-core",
@@ -310,7 +310,7 @@ dependencies = [
 
 [[package]]
 name = "gregorio-wasm"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "gregorio-core",
  "serde",
