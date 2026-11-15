@@ -1,0 +1,36 @@
+# cargo-deny configuration — https://embarkstudios.github.io/cargo-deny/
+# Run locally with: cargo deny check
+
+[graph]
+all-features = true
+
+[advisories]
+# RustSec advisory database: vulnerabilities, unsound code, yanked crates.
+# Unmaintained crates are reported only for direct dependencies.
+unmaintained = "workspace"
+yanked = "deny"
+ignore = [
+    # { id = "RUSTSEC-0000-0000", reason = "why this advisory does not apply" },
+]
+
+[licenses]
+# Keep in sync with allow-licenses in .github/workflows/dependency-review.yml.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+# Workspace crates depend on each other by path without a version, which
+# cargo-deny reports as a wildcard; keep it as a warning.
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

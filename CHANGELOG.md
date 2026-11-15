@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Security workflows: CodeQL analysis of the Rust sources and GitHub Actions
+  (`codeql.yml`), Dependency Review on pull requests (`dependency-review.yml`)
+  and a daily `cargo-deny` audit against the RustSec advisory database with a
+  license/source policy in `deny.toml` (`security-audit.yml`); `SECURITY.md`
+  describes how to report vulnerabilities.
 - `grefmt` / `format_gabc_text`: new word-per-line layout
   (`FormatOptions::word_per_line`, `WordPerLine::{Auto, Always, Never}`) that
   places each word on its own line, keeping bars and `*` / `**` attached to the
