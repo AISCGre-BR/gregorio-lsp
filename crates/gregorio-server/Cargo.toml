@@ -1,6 +1,6 @@
 [package]
 name = "gregorio-server"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2021"
 authors = ["AISCGre Brasil"]
 description = "LSP server binary for Gregorio GABC/NABC (tower-lsp over stdio)"

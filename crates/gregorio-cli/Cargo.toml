@@ -1,6 +1,6 @@
 [package]
 name = "gregorio-cli"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2021"
 authors = ["AISCGre Brasil"]
 description = "CLI tools (grelint linter and grefmt formatter) for Gregorio GABC/NABC"
