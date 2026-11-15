@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New `isolated-strophae` validation rule (Warning): an NABC voice whose
+  neumes on a syllable consist only of one or two strophae (`st`, `ds`,
+  `stst`, `st!st`) is flagged, since only 3 or more strophae are admitted on
+  an isolated syllable; for two strophae the message suggests a virga strata
+  (`vs`). Each voice is checked separately and strophae are summed across the
+  syllable's alternating GABC/NABC segments (e.g. `(fff|stds)` is accepted).
+
 ## [0.12.0] - 2026-11-15
 
 ### Added
