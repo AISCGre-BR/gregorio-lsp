@@ -72,6 +72,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | `staff-lines` | Error | `staff-lines` value outside the 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |
+| `isolated-strophae` | Warning | One or two strophae (`st`, `ds`, `stst`) alone on a syllable in an NABC voice; only 3 or more are admitted (two strophae: consider a virga strata `vs`) |
 | `line-break-at-end-of-score` | Warning | Forced line break (`z`/`Z` and variants) at end of score is ignored by GregorioTeX; auto-fixable by removing it |
 | `duplicate-syllable-center` | Warning | Syllable text contains multiple `{…}` forced-center markers; only the first is used |
 | `punctuation-after-note-group` | Warning | Punctuation typed after a note group (for example `foo(),`) should be placed before the parentheses (`foo,()`); auto-fixable |

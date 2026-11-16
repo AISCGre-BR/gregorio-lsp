@@ -1,6 +1,6 @@
 //! Validation rules: structural / lint-style checks over a parsed GABC document.
 
-use crate::parser::nabc::parse_nabc_snippets;
+use crate::parser::nabc::{parse_nabc_descriptors, parse_nabc_snippets};
 use crate::parser::types::*;
 
 /// A validation rule that produces zero or more errors when applied to a parsed document.
@@ -280,6 +280,106 @@ fn collect_fusion_chain(glyph: &NabcGlyphDescriptor) -> Vec<&NabcGlyphDescriptor
         cur = c.fusion.as_deref();
     }
     chain
+}
+
+/// Number of strophae represented by a St. Gall stropha glyph (`st`, `ds`,
+/// `ts`), or `None` for any other glyph.
+fn stropha_count(glyph: NabcBasicGlyph) -> Option<u32> {
+    match glyph {
+        NabcBasicGlyph::Stropha => Some(1),
+        NabcBasicGlyph::Distropha => Some(2),
+        NabcBasicGlyph::Tristropha => Some(3),
+        _ => None,
+    }
+}
+
+/// Total strophae in one NABC snippet: `Some(0)` for an empty snippet,
+/// `Some(n)` when it holds only stropha glyphs, `None` otherwise.
+///
+/// The NABC parser silently skips characters it does not recognise, so a
+/// snippet such as `lsst` (a significant letter) would otherwise be read as a
+/// lone stropha; the snippet must therefore start with a stropha glyph code.
+fn snippet_stropha_total(snippet: &str, start: Position) -> Option<u32> {
+    let lead = snippet.trim_start_matches(|c: char| c == '/' || c == '`' || c.is_whitespace());
+    if lead.is_empty() {
+        return Some(0);
+    }
+    if !["st", "ds", "ts"].iter().any(|code| lead.starts_with(code)) {
+        return None;
+    }
+    parse_nabc_descriptors(snippet, Some(start))
+        .iter()
+        .flat_map(collect_fusion_chain)
+        .map(|g| stropha_count(g.basic_glyph))
+        .sum()
+}
+
+/// Strophae alone on a syllable are only admitted in groups of three or more
+/// (tristropha or longer repercussions).
+///
+/// Each NABC voice is checked separately over the whole syllable. After the
+/// first `|`, a note group alternates `nabc1|…|nabcN|gabc|nabc1|…` (N =
+/// `nabc-lines`), and the parser keeps every segment after the first pipe in
+/// `NoteGroup::nabc`; segment `i` belongs to voice `i % (N + 1)`, and index `N`
+/// of each period is an intermediate GABC segment. A voice that mixes strophae
+/// with any other glyph on the syllable is not isolated and is skipped.
+fn isolated_strophae(doc: &ParsedDocument) -> Vec<ParseError> {
+    let nabc_lines = doc
+        .headers
+        .get("nabc-lines")
+        .and_then(|v| v.trim().trim_end_matches(';').trim().parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(1);
+    let period = nabc_lines + 1;
+
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        let groups: Vec<&NoteGroup> = syllable
+            .notes
+            .iter()
+            .filter(|g| g.nabc.as_ref().is_some_and(|n| !n.is_empty()))
+            .collect();
+        let (Some(first), Some(last)) = (groups.first(), groups.last()) else {
+            continue;
+        };
+
+        // Per voice: Some(total) while only strophae were seen, None once any
+        // other glyph appears.
+        let mut totals: Vec<Option<u32>> = vec![Some(0); nabc_lines];
+        for group in &groups {
+            let snippets = group.nabc.as_deref().unwrap_or_default();
+            for (idx, snippet) in snippets.iter().enumerate() {
+                let voice = idx % period;
+                if voice >= nabc_lines {
+                    continue; // intermediate GABC segment
+                }
+                let snippet_total = snippet_stropha_total(snippet, group.range.start);
+                totals[voice] = match (totals[voice], snippet_total) {
+                    (Some(a), Some(b)) => Some(a + b),
+                    _ => None,
+                };
+            }
+        }
+
+        let range = Range::new(first.range.start, last.range.end);
+        for total in totals {
+            let message = match total {
+                Some(1) => {
+                    "Isolated stropha: only 3 or more strophae are admitted on an \
+                     isolated syllable (found 1)."
+                }
+                Some(2) => {
+                    "Isolated distropha: only 3 or more strophae are admitted on an \
+                     isolated syllable (found 2). Consider a virga strata ('vs') instead."
+                }
+                _ => continue,
+            };
+            out.push(
+                ParseError::new(message, range, Severity::Warning).with_code("isolated-strophae"),
+            );
+        }
+    }
+    out
 }
 
 fn balanced_pitch_descriptors_in_fused_glyphs(doc: &ParsedDocument) -> Vec<ParseError> {
@@ -1525,6 +1625,12 @@ pub const VALIDATE_LINE_BREAK_NOT_AT_END: ValidationRule = ValidationRule {
     validate: line_break_not_at_end,
 };
 
+pub const VALIDATE_ISOLATED_STROPHAE: ValidationRule = ValidationRule {
+    name: "isolated-strophae",
+    severity: Severity::Warning,
+    validate: isolated_strophae,
+};
+
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
@@ -1538,6 +1644,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_STAFF_LINES,
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,
+        &VALIDATE_ISOLATED_STROPHAE,
         &VALIDATE_LINE_BREAK_AT_END_OF_SCORE,
         &VALIDATE_NABC_SPACE_IN_CODE,
         &VALIDATE_BAR_MIXED_WITH_NOTES,

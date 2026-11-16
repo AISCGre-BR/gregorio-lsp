@@ -258,6 +258,7 @@ pub struct ValidationRule {
 | `staff-lines` | Error | `staff-lines` value outside 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on last glyph in fusion |
+| `isolated-strophae` | Warning | 1–2 strophae alone on a syllable (per NABC voice, summed over the syllable's alternating segments); only 3+ admitted; suggests `vs` for 2 |
 
 **Rules for adding new structural rules:**
 - Add the `ValidationRule` constant in `rules.rs`.
