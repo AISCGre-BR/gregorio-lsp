@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New `scandicus-intervals` validation rule (Warning) for three-note scandicus
+  and salicus (a syllable whose GABC notes are exactly three ascending notes;
+  spacing/fusion connectors `/`, `!`, `` ` ``, spaces, `@` and accidentals are
+  ignored). The interval between the first and second notes must not exceed a
+  perfect fifth, the interval between the second and third notes must not
+  exceed a third, and after a leap of a fourth or fifth the second and third
+  notes must be a step apart: `(dfh)`, `(dgh)`, `(dhi)` are accepted;
+  `(dgi)`, `(dhj)` are flagged.
 - New `isolated-strophae` validation rule (Warning): an NABC voice whose
   neumes on a syllable consist only of one or two strophae (`st`, `ds`,
   `stst`, `st!st`) is flagged, since only 3 or more strophae are admitted on

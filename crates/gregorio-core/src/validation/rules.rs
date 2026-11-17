@@ -258,6 +258,76 @@ fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> 
     out
 }
 
+/// A three-note scandicus (or salicus) must keep a singable melodic shape.
+///
+/// The rule applies only when the GABC notes of a syllable are exactly three
+/// strictly ascending notes; spacing and fusion connectors (`/`, `!`, `` ` ``,
+/// spaces, `@`) are ignored because the parser does not emit them as notes,
+/// and accidentals (`x`, `#`, `y`) are skipped. Intervals are counted in staff
+/// degrees (second = 1, third = 2, fourth = 3, fifth = 4):
+///
+/// - first → second must not exceed a perfect fifth;
+/// - second → third must not exceed a third;
+/// - after a leap of a fourth or fifth, second → third must be a step.
+fn scandicus_intervals(doc: &ParsedDocument) -> Vec<ParseError> {
+    const CODE: &str = "scandicus-intervals";
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        if syllable.clef.is_some() {
+            continue;
+        }
+        for group in &syllable.notes {
+            let notes: Vec<&Note> = group
+                .notes
+                .iter()
+                .filter(|n| {
+                    !matches!(
+                        n.shape,
+                        NoteShape::Flat | NoteShape::Sharp | NoteShape::Natural
+                    )
+                })
+                .collect();
+            let [first, second, third] = notes.as_slice() else {
+                continue;
+            };
+            let (p1, p2, p3) = (
+                pitch_value(first.pitch),
+                pitch_value(second.pitch),
+                pitch_value(third.pitch),
+            );
+            if p1 == 0 || !(p1 < p2 && p2 < p3) {
+                continue;
+            }
+            let (d1, d2) = (p2 - p1, p3 - p2);
+            let range = Range::new(first.range.start, third.range.end);
+            let mut warn = |message: String| {
+                out.push(ParseError::new(message, range, Severity::Warning).with_code(CODE));
+            };
+            if d1 > 4 {
+                warn(format!(
+                    "Scandicus '{}'→'{}': the interval between the first and second notes \
+                     exceeds a perfect fifth",
+                    first.pitch, second.pitch
+                ));
+            }
+            if d2 > 2 {
+                warn(format!(
+                    "Scandicus '{}'→'{}': the interval between the second and third notes \
+                     exceeds a third",
+                    second.pitch, third.pitch
+                ));
+            } else if d1 >= 3 && d2 > 1 {
+                warn(format!(
+                    "Scandicus '{}'→'{}'→'{}': after a leap of a fourth or fifth, the second \
+                     and third notes must be a step apart",
+                    first.pitch, second.pitch, third.pitch
+                ));
+            }
+        }
+    }
+    out
+}
+
 fn staff_lines(doc: &ParsedDocument) -> Vec<ParseError> {
     if let Some(value) = doc.headers.get("staff-lines") {
         let n: i32 = value.trim().parse().unwrap_or(4);
@@ -1631,6 +1701,12 @@ pub const VALIDATE_ISOLATED_STROPHAE: ValidationRule = ValidationRule {
     validate: isolated_strophae,
 };
 
+pub const VALIDATE_SCANDICUS_INTERVALS: ValidationRule = ValidationRule {
+    name: "scandicus-intervals",
+    severity: Severity::Warning,
+    validate: scandicus_intervals,
+};
+
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
@@ -1641,6 +1717,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_QUILISMA_LOWER,
         &VALIDATE_QUILISMA_PES_HIGHER,
         &VALIDATE_ORISCUS_HIGHER,
+        &VALIDATE_SCANDICUS_INTERVALS,
         &VALIDATE_STAFF_LINES,
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,
