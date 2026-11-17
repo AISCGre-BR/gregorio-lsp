@@ -35,7 +35,7 @@
         # pull that dependency into native host builds for no benefit.
         gregorio-lsp = rustPlatform.buildRustPackage {
           pname = "gregorio-lsp";
-          version = "0.12.0";
+          version = "0.13.0";
           src = ./.;
 
           postPatch = ''
