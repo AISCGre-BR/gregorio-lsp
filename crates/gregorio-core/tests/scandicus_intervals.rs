@@ -85,7 +85,7 @@ fn accidentals_are_not_counted_as_notes() {
 #[test]
 fn groups_that_are_not_three_note_scandicus_are_ignored() {
     assert_ok(&[
-        "dg", "dgik", "fdgi", "dgig", "igd", "dgg", "ddi", "dgi.dgi", "c4",
+        "dg", "defgh", "fdgi", "dfgf", "dgig", "igd", "dgg", "ddi", "dgi.dgi", "c4",
     ]);
 }
 
@@ -103,4 +103,27 @@ fn only_gabc_notes_are_considered_with_nabc() {
     let header = "nabc-lines: 1;\n";
     assert!(warnings_with_header(header, "ad(dgh|sc)").is_empty());
     assert_eq!(warnings_with_header(header, "ad(dgi|sc)").len(), 1);
+}
+
+const FOUR: &str = "only all steps, or a third followed by steps";
+
+#[test]
+fn four_note_scandicus_admitted_shapes() {
+    assert_ok(&["defg", "dfgh", "d/e!f g", "dfgoh", "dexfg", "d@fgh"]);
+}
+
+#[test]
+fn four_note_scandicus_other_shapes_warn() {
+    assert_warns(
+        &["degh", "dghi", "defh", "dfhi", "dgik", "d g/h!i", "dhij"],
+        FOUR,
+    );
+}
+
+#[test]
+fn four_note_diagnostic_spans_the_four_notes() {
+    let w = warnings("d g/h!i");
+    assert_eq!(w.len(), 1);
+    let r = w[0].range;
+    assert_eq!(r.end.character - r.start.character, "d g/h!i".len());
 }

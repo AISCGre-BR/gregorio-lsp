@@ -258,10 +258,11 @@ fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> 
     out
 }
 
-/// A three-note scandicus (or salicus) must keep a singable melodic shape.
+/// A three- or four-note scandicus (or salicus) must keep a singable melodic
+/// shape.
 ///
 /// The rule applies only when the GABC notes of a syllable are exactly three
-/// strictly ascending notes; spacing and fusion connectors (`/`, `!`, `` ` ``,
+/// or four strictly ascending notes; spacing and fusion connectors (`/`, `!`, `` ` ``,
 /// spaces, `@`) are ignored because the parser does not emit them as notes,
 /// and accidentals (`x`, `#`, `y`) are skipped. Intervals are counted in staff
 /// degrees (second = 1, third = 2, fourth = 3, fifth = 4):
@@ -269,8 +270,9 @@ fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> 
 /// - first → second must not exceed a perfect fifth;
 /// - second → third must not exceed a third;
 /// - after a leap of a fourth or fifth, second → third must be a step.
+///
+/// With four notes, only all steps or a third followed by steps are admitted.
 fn scandicus_intervals(doc: &ParsedDocument) -> Vec<ParseError> {
-    const CODE: &str = "scandicus-intervals";
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
         if syllable.clef.is_some() {
@@ -287,45 +289,93 @@ fn scandicus_intervals(doc: &ParsedDocument) -> Vec<ParseError> {
                     )
                 })
                 .collect();
-            let [first, second, third] = notes.as_slice() else {
-                continue;
-            };
-            let (p1, p2, p3) = (
-                pitch_value(first.pitch),
-                pitch_value(second.pitch),
-                pitch_value(third.pitch),
-            );
-            if p1 == 0 || !(p1 < p2 && p2 < p3) {
-                continue;
-            }
-            let (d1, d2) = (p2 - p1, p3 - p2);
-            let range = Range::new(first.range.start, third.range.end);
-            let mut warn = |message: String| {
-                out.push(ParseError::new(message, range, Severity::Warning).with_code(CODE));
-            };
-            if d1 > 4 {
-                warn(format!(
-                    "Scandicus '{}'→'{}': the interval between the first and second notes \
-                     exceeds a perfect fifth",
-                    first.pitch, second.pitch
-                ));
-            }
-            if d2 > 2 {
-                warn(format!(
-                    "Scandicus '{}'→'{}': the interval between the second and third notes \
-                     exceeds a third",
-                    second.pitch, third.pitch
-                ));
-            } else if d1 >= 3 && d2 > 1 {
-                warn(format!(
-                    "Scandicus '{}'→'{}'→'{}': after a leap of a fourth or fifth, the second \
-                     and third notes must be a step apart",
-                    first.pitch, second.pitch, third.pitch
-                ));
+            match notes.as_slice() {
+                [a, b, c] => out.extend(three_note_scandicus(a, b, c)),
+                [a, b, c, d] => out.extend(four_note_scandicus(a, b, c, d)),
+                _ => {}
             }
         }
     }
     out
+}
+
+/// Returns the staff-degree intervals between consecutive notes when they are
+/// strictly ascending, or `None` otherwise.
+fn ascending_intervals(notes: &[&Note]) -> Option<Vec<i32>> {
+    let pitches: Vec<i32> = notes.iter().map(|n| pitch_value(n.pitch)).collect();
+    if pitches.contains(&0) {
+        return None;
+    }
+    let intervals: Vec<i32> = pitches.windows(2).map(|w| w[1] - w[0]).collect();
+    intervals.iter().all(|&d| d > 0).then_some(intervals)
+}
+
+fn scandicus_warning(message: String, first: &Note, last: &Note) -> ParseError {
+    ParseError::new(
+        message,
+        Range::new(first.range.start, last.range.end),
+        Severity::Warning,
+    )
+    .with_code("scandicus-intervals")
+}
+
+fn three_note_scandicus(first: &Note, second: &Note, third: &Note) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    let Some(intervals) = ascending_intervals(&[first, second, third]) else {
+        return out;
+    };
+    let (d1, d2) = (intervals[0], intervals[1]);
+    if d1 > 4 {
+        out.push(scandicus_warning(
+            format!(
+                "Scandicus '{}'→'{}': the interval between the first and second notes \
+                 exceeds a perfect fifth",
+                first.pitch, second.pitch
+            ),
+            first,
+            third,
+        ));
+    }
+    if d2 > 2 {
+        out.push(scandicus_warning(
+            format!(
+                "Scandicus '{}'→'{}': the interval between the second and third notes \
+                 exceeds a third",
+                second.pitch, third.pitch
+            ),
+            first,
+            third,
+        ));
+    } else if d1 >= 3 && d2 > 1 {
+        out.push(scandicus_warning(
+            format!(
+                "Scandicus '{}'→'{}'→'{}': after a leap of a fourth or fifth, the second \
+                 and third notes must be a step apart",
+                first.pitch, second.pitch, third.pitch
+            ),
+            first,
+            third,
+        ));
+    }
+    out
+}
+
+/// A four-note scandicus is admitted only as all steps (`defg`) or as a third
+/// followed by steps (`dfgh`).
+fn four_note_scandicus(a: &Note, b: &Note, c: &Note, d: &Note) -> Option<ParseError> {
+    let intervals = ascending_intervals(&[a, b, c, d])?;
+    let admitted = matches!(intervals.as_slice(), [1 | 2, 1, 1]);
+    (!admitted).then(|| {
+        scandicus_warning(
+            format!(
+                "Four-note scandicus '{}'→'{}'→'{}'→'{}': only all steps, or a third \
+                 followed by steps, are admitted",
+                a.pitch, b.pitch, c.pitch, d.pitch
+            ),
+            a,
+            d,
+        )
+    })
 }
 
 fn staff_lines(doc: &ParsedDocument) -> Vec<ParseError> {

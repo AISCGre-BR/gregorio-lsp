@@ -255,7 +255,7 @@ pub struct ValidationRule {
 | `quilisma-lower-pitch` | Warning | Quilisma followed by equal/lower pitch |
 | `quilisma-pes-higher-pitch` | Warning | Quilisma-pes preceded by equal/higher pitch |
 | `oriscus-higher-pitch` | Warning | Oriscus at end of a neume (or isolated) followed by equal/higher pitch — violates Gregorian semiological rule (oriscus must always lead to a lower note); covers virga strata and isolated oriscus; excludes salicus and pes-quassus |
-| `scandicus-intervals` | Warning | 3-note scandicus/salicus (syllable with exactly 3 ascending GABC notes; `/`, `!`, `` ` ``, spaces, `@` and accidentals ignored): 1st→2nd ≤ fifth, 2nd→3rd ≤ third, and a step after a leap of a fourth/fifth |
+| `scandicus-intervals` | Warning | 3/4-note scandicus/salicus (syllable with exactly 3 or 4 ascending GABC notes; `/`, `!`, `` ` ``, spaces, `@` and accidentals ignored): 1st→2nd ≤ fifth, 2nd→3rd ≤ third, and a step after a leap of a fourth/fifth; 4-note scandicus only as steps (`defg`) or third + steps (`dfgh`) |
 | `staff-lines` | Error | `staff-lines` value outside 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on last glyph in fusion |
