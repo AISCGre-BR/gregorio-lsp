@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-17
+
 ### Added
 - New `scandicus-intervals` validation rule (Warning) for three-note scandicus
   and salicus (a syllable whose GABC notes are exactly three ascending notes;
@@ -27,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an isolated syllable; for two strophae the message suggests a virga strata
   (`vs`). Each voice is checked separately and strophae are summed across the
   syllable's alternating GABC/NABC segments (e.g. `(fff|stds)` is accepted).
+
+### Changed
+- `gregorio-core`: `Note` has a new public field `spaced_before`, true when a
+  spacing connector (`/`, `//`, `!`, `` ` `` or whitespace) separates the note
+  from the previous one in its note group. Code that builds `Note` values with
+  struct literals must set it.
 
 ## [0.12.0] - 2026-11-15
 
@@ -395,7 +403,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/aiscgre-br/gregorio-lsp/compare/v0.9.4...v0.10.0
