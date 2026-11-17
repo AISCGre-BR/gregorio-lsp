@@ -514,12 +514,14 @@ fn parse_note_group(
     let mut custos: Option<Custos> = None;
     let mut attributes: Vec<GabcAttribute> = Vec::new();
 
+    let mut spaced = false;
     let mut i = 0;
     while i < chars.len() {
         let ch = chars[i];
 
-        // Skip whitespace and connectors
+        // Skip whitespace and connectors, remembering them for the next note
         if matches!(ch, ' ' | '\t' | '\n' | '\r' | '/' | '`' | '!') {
+            spaced = !notes.is_empty();
             i += 1;
             continue;
         }
@@ -731,7 +733,9 @@ fn parse_note_group(
                 modifiers,
                 range: Range::new(note_start, note_end),
                 fusion: false,
+                spaced_before: spaced,
             });
+            spaced = false;
         } else {
             i += 1;
         }

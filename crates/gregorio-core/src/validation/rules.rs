@@ -258,6 +258,150 @@ fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> 
     out
 }
 
+/// A three- or four-note scandicus (or salicus) must keep a singable melodic
+/// shape.
+///
+/// The rule applies only when the GABC notes of a syllable are exactly three
+/// or four strictly ascending notes; spacing and fusion connectors (`/`, `!`, `` ` ``,
+/// spaces, `@`) are ignored because the parser does not emit them as notes,
+/// and accidentals (`x`, `#`, `y`) are skipped. Intervals are counted in staff
+/// degrees (second = 1, third = 2, fourth = 3, fifth = 4):
+///
+/// - first → second must not exceed a perfect fifth;
+/// - second → third must not exceed a third;
+/// - after a leap of a fourth or fifth, second → third must be a step.
+///
+/// With four notes, only all steps or a third followed by steps are admitted.
+/// A spacing connector after the first or second note (`b/ceof`, `cd/fg`)
+/// means a scandicus composed with another neume, so the group is skipped.
+///
+/// Groups containing a punctum inclinatum (e.g. `FHjk`) are not a scandicus
+/// and are skipped as well.
+fn scandicus_intervals(doc: &ParsedDocument) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    for syllable in &doc.notation.syllables {
+        if syllable.clef.is_some() {
+            continue;
+        }
+        for group in &syllable.notes {
+            // Drop accidentals, carrying a spacing connector written before
+            // an accidental over to the note it alters.
+            let mut notes: Vec<&Note> = Vec::new();
+            let mut spaced: Vec<bool> = Vec::new();
+            let mut pending = false;
+            for n in &group.notes {
+                pending |= n.spaced_before;
+                if matches!(
+                    n.shape,
+                    NoteShape::Flat | NoteShape::Sharp | NoteShape::Natural
+                ) {
+                    continue;
+                }
+                notes.push(n);
+                spaced.push(pending);
+                pending = false;
+            }
+            // Ascending puncta inclinata (`FHjk`) do not form a scandicus.
+            if notes
+                .iter()
+                .any(|n| n.shape == NoteShape::PunctumInclinatum)
+            {
+                continue;
+            }
+            match notes.as_slice() {
+                [a, b, c] => out.extend(three_note_scandicus(a, b, c)),
+                // A connector after the first note (`b/ceof`: punctum + salicus)
+                // or after the second (`cd/fg`: two pes) means a scandicus
+                // composed with another neume, which this rule does not cover.
+                [a, b, c, d] if !spaced[1] && !spaced[2] => {
+                    out.extend(four_note_scandicus(a, b, c, d))
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// Returns the staff-degree intervals between consecutive notes when they are
+/// strictly ascending, or `None` otherwise.
+fn ascending_intervals(notes: &[&Note]) -> Option<Vec<i32>> {
+    let pitches: Vec<i32> = notes.iter().map(|n| pitch_value(n.pitch)).collect();
+    if pitches.contains(&0) {
+        return None;
+    }
+    let intervals: Vec<i32> = pitches.windows(2).map(|w| w[1] - w[0]).collect();
+    intervals.iter().all(|&d| d > 0).then_some(intervals)
+}
+
+fn scandicus_warning(message: String, first: &Note, last: &Note) -> ParseError {
+    ParseError::new(
+        message,
+        Range::new(first.range.start, last.range.end),
+        Severity::Warning,
+    )
+    .with_code("scandicus-intervals")
+}
+
+fn three_note_scandicus(first: &Note, second: &Note, third: &Note) -> Vec<ParseError> {
+    let mut out = Vec::new();
+    let Some(intervals) = ascending_intervals(&[first, second, third]) else {
+        return out;
+    };
+    let (d1, d2) = (intervals[0], intervals[1]);
+    if d1 > 4 {
+        out.push(scandicus_warning(
+            format!(
+                "Scandicus '{}'→'{}': the interval between the first and second notes \
+                 exceeds a perfect fifth",
+                first.pitch, second.pitch
+            ),
+            first,
+            third,
+        ));
+    }
+    if d2 > 2 {
+        out.push(scandicus_warning(
+            format!(
+                "Scandicus '{}'→'{}': the interval between the second and third notes \
+                 exceeds a third",
+                second.pitch, third.pitch
+            ),
+            first,
+            third,
+        ));
+    } else if d1 >= 3 && d2 > 1 {
+        out.push(scandicus_warning(
+            format!(
+                "Scandicus '{}'→'{}'→'{}': after a leap of a fourth or fifth, the second \
+                 and third notes must be a step apart",
+                first.pitch, second.pitch, third.pitch
+            ),
+            first,
+            third,
+        ));
+    }
+    out
+}
+
+/// A four-note scandicus is admitted only as all steps (`defg`) or as a third
+/// followed by steps (`dfgh`).
+fn four_note_scandicus(a: &Note, b: &Note, c: &Note, d: &Note) -> Option<ParseError> {
+    let intervals = ascending_intervals(&[a, b, c, d])?;
+    let admitted = matches!(intervals.as_slice(), [1 | 2, 1, 1]);
+    (!admitted).then(|| {
+        scandicus_warning(
+            format!(
+                "Four-note scandicus '{}'→'{}'→'{}'→'{}': only all steps, or a third \
+                 followed by steps, are admitted",
+                a.pitch, b.pitch, c.pitch, d.pitch
+            ),
+            a,
+            d,
+        )
+    })
+}
+
 fn staff_lines(doc: &ParsedDocument) -> Vec<ParseError> {
     if let Some(value) = doc.headers.get("staff-lines") {
         let n: i32 = value.trim().parse().unwrap_or(4);
@@ -1631,6 +1775,12 @@ pub const VALIDATE_ISOLATED_STROPHAE: ValidationRule = ValidationRule {
     validate: isolated_strophae,
 };
 
+pub const VALIDATE_SCANDICUS_INTERVALS: ValidationRule = ValidationRule {
+    name: "scandicus-intervals",
+    severity: Severity::Warning,
+    validate: scandicus_intervals,
+};
+
 pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
     vec![
         &VALIDATE_NAME_HEADER,
@@ -1641,6 +1791,7 @@ pub fn all_validation_rules() -> Vec<&'static ValidationRule> {
         &VALIDATE_QUILISMA_LOWER,
         &VALIDATE_QUILISMA_PES_HIGHER,
         &VALIDATE_ORISCUS_HIGHER,
+        &VALIDATE_SCANDICUS_INTERVALS,
         &VALIDATE_STAFF_LINES,
         &VALIDATE_BALANCED_PITCH_DESCRIPTORS_FUSED,
         &VALIDATE_MODIFIERS_FUSED,

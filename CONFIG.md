@@ -69,6 +69,7 @@ Known rule codes (use any of these in `ignoreRules`):
 | `quilisma-lower-pitch` | Warning | Quilisma followed by equal or lower pitch |
 | `quilisma-pes-higher-pitch` | Warning | Quilisma-pes preceded by equal or higher pitch |
 | `oriscus-higher-pitch` | Warning | Oriscus at end of a neume (or isolated) followed by equal or higher pitch — violates Gregorian semiological rule (oriscus must always lead to a lower note); covers virga strata and isolated oriscus; excludes salicus and pes-quassus |
+| `scandicus-intervals` | Warning | Three-note scandicus/salicus (exactly three or four ascending GABC notes on a syllable, connectors and accidentals ignored) whose first interval exceeds a perfect fifth, whose second interval exceeds a third, or whose leap of a fourth/fifth is not followed by a step; a four-note scandicus is admitted only as all steps (`defg`) or a third followed by steps (`dfgh`), while a connector after its first or second note (`b/ceof`, `cd/fg`) means a composed neume, which is not checked; groups with a punctum inclinatum (`FHjk`) are not a scandicus |
 | `staff-lines` | Error | `staff-lines` value outside the 2–5 range |
 | `balanced-pitch-descriptors-fused-glyphs` | Warning | NABC fused glyphs with unbalanced pitch count |
 | `modifiers-in-fused-glyphs` | Warning | Modifiers only allowed on the last glyph in a fusion chain |

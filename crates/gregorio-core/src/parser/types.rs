@@ -192,6 +192,9 @@ pub struct Note {
     pub modifiers: Vec<NoteModifier>,
     pub range: Range,
     pub fusion: bool,
+    /// True when a spacing connector (`/`, `//`, `!`, `` ` `` or whitespace)
+    /// separates this note from the previous one in the same note group.
+    pub spaced_before: bool,
 }
 
 #[derive(Debug, Clone)]
