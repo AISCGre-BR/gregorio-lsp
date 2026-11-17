@@ -272,6 +272,11 @@ fn oriscus_followed_by_equal_or_higher(doc: &ParsedDocument) -> Vec<ParseError> 
 /// - after a leap of a fourth or fifth, second → third must be a step.
 ///
 /// With four notes, only all steps or a third followed by steps are admitted.
+/// A spacing connector after the first or second note (`b/ceof`, `cd/fg`)
+/// means a scandicus composed with another neume, so the group is skipped.
+///
+/// Groups containing a punctum inclinatum (e.g. `FHjk`) are not a scandicus
+/// and are skipped as well.
 fn scandicus_intervals(doc: &ParsedDocument) -> Vec<ParseError> {
     let mut out = Vec::new();
     for syllable in &doc.notation.syllables {
@@ -279,19 +284,38 @@ fn scandicus_intervals(doc: &ParsedDocument) -> Vec<ParseError> {
             continue;
         }
         for group in &syllable.notes {
-            let notes: Vec<&Note> = group
-                .notes
+            // Drop accidentals, carrying a spacing connector written before
+            // an accidental over to the note it alters.
+            let mut notes: Vec<&Note> = Vec::new();
+            let mut spaced: Vec<bool> = Vec::new();
+            let mut pending = false;
+            for n in &group.notes {
+                pending |= n.spaced_before;
+                if matches!(
+                    n.shape,
+                    NoteShape::Flat | NoteShape::Sharp | NoteShape::Natural
+                ) {
+                    continue;
+                }
+                notes.push(n);
+                spaced.push(pending);
+                pending = false;
+            }
+            // Ascending puncta inclinata (`FHjk`) do not form a scandicus.
+            if notes
                 .iter()
-                .filter(|n| {
-                    !matches!(
-                        n.shape,
-                        NoteShape::Flat | NoteShape::Sharp | NoteShape::Natural
-                    )
-                })
-                .collect();
+                .any(|n| n.shape == NoteShape::PunctumInclinatum)
+            {
+                continue;
+            }
             match notes.as_slice() {
                 [a, b, c] => out.extend(three_note_scandicus(a, b, c)),
-                [a, b, c, d] => out.extend(four_note_scandicus(a, b, c, d)),
+                // A connector after the first note (`b/ceof`: punctum + salicus)
+                // or after the second (`cd/fg`: two pes) means a scandicus
+                // composed with another neume, which this rule does not cover.
+                [a, b, c, d] if !spaced[1] && !spaced[2] => {
+                    out.extend(four_note_scandicus(a, b, c, d))
+                }
                 _ => {}
             }
         }

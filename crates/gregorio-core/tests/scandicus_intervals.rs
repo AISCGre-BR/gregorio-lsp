@@ -73,7 +73,7 @@ fn connectors_and_spaces_are_ignored() {
 #[test]
 fn salicus_and_other_shapes_follow_the_same_rule() {
     assert_ok(&["dgoh", "dgvh", "dfwh", "d.g_h'"]);
-    assert_warns(&["dgoi", "dGi"], LEAP);
+    assert_warns(&["dgoi"], LEAP);
 }
 
 #[test]
@@ -115,15 +115,42 @@ fn four_note_scandicus_admitted_shapes() {
 #[test]
 fn four_note_scandicus_other_shapes_warn() {
     assert_warns(
-        &["degh", "dghi", "defh", "dfhi", "dgik", "d g/h!i", "dhij"],
+        &[
+            "degh", "dghi", "defh", "dfhi", "dgik", "dgh/i", "dhij", "dg@hi", "dgixhi",
+        ],
         FOUR,
     );
 }
 
 #[test]
 fn four_note_diagnostic_spans_the_four_notes() {
-    let w = warnings("d g/h!i");
+    let w = warnings("dgh/i");
     assert_eq!(w.len(), 1);
     let r = w[0].range;
-    assert_eq!(r.end.character - r.start.character, "d g/h!i".len());
+    assert_eq!(r.end.character - r.start.character, "dgh/i".len());
+}
+
+#[test]
+fn connector_between_second_and_third_notes_makes_two_pes() {
+    assert_ok(&[
+        "cd/fg", "cd!fg", "cd fg", "dg//hi", "fh`jk", "d!g!hi", "d!f!h!iv", "ixdg/hi", "dg/ixhi",
+        "fg!hj~",
+    ]);
+}
+
+#[test]
+fn three_note_scandicus_still_ignores_connectors() {
+    assert_warns(&["dg/i", "dg!i", "dg i"], LEAP);
+}
+
+#[test]
+fn connector_after_first_note_is_a_composed_neume() {
+    assert_ok(&["b/ceof", "b/c@eof", "b/cefv", "d!ghi", "f!gh!jv", "d ghi"]);
+}
+
+#[test]
+fn puncta_inclinata_are_not_a_scandicus() {
+    assert_ok(&[
+        "FHjk", "FHjk~", "DFhwi>", "BCdo1f", "DEgo1!hv", "FGhj~", "dGi", "DGi", "DHj",
+    ]);
 }

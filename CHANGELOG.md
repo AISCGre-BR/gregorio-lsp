@@ -17,7 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   notes must be a step apart: `(dfh)`, `(dgh)`, `(dhi)` are accepted;
   `(dgi)`, `(dhj)` are flagged. A four-note scandicus is admitted only with
   all steps (`(defg)`) or a third followed by steps (`(dfgh)`); other shapes
-  such as `(degh)` or `(dghi)` are flagged.
+  such as `(degh)` or `(dghi)` are flagged. A spacing connector after the
+  first or second note (`(b/ceof)`, `(cd/fg)`) means a scandicus composed with
+  another neume, which is not checked. Groups containing a punctum inclinatum
+  (e.g. `(FHjk)`) are not a scandicus and are skipped.
 - New `isolated-strophae` validation rule (Warning): an NABC voice whose
   neumes on a syllable consist only of one or two strophae (`st`, `ds`,
   `stst`, `st!st`) is flagged, since only 3 or more strophae are admitted on
