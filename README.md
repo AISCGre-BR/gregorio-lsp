@@ -31,6 +31,38 @@ feature set with native binaries:
 - Optional [tree-sitter-gregorio](../tree-sitter-gregorio) integration via the `tree-sitter` feature flag;
 - Integration test suite with 29 cases covering parser, NABC, and validation.
 
+## Installation
+
+### Prebuilt binaries
+
+Every release from v0.13.0 on ships prebuilt `gregorio-lsp`, `grelint` and
+`grefmt` executables on the
+[Releases page](https://github.com/AISCGre-BR/gregorio-lsp/releases):
+
+| Platform | Asset |
+|---|---|
+| Linux x86-64 (static, musl) | `gregorio-lsp-x86_64-unknown-linux-musl.tar.gz` |
+| Linux ARM64 (static, musl) | `gregorio-lsp-aarch64-unknown-linux-musl.tar.gz` |
+| macOS Intel | `gregorio-lsp-x86_64-apple-darwin.tar.gz` |
+| macOS Apple Silicon | `gregorio-lsp-aarch64-apple-darwin.tar.gz` |
+| Windows x86-64 | `gregorio-lsp-x86_64-pc-windows-msvc.zip` |
+| Windows ARM64 | `gregorio-lsp-aarch64-pc-windows-msvc.zip` |
+
+Extract the archive and put the executables on your `PATH`. `SHA256SUMS`
+lists the checksums of all assets. The
+[Zed extension](https://github.com/lbssousa/zed-gregorio) downloads these
+binaries automatically.
+
+### From source
+
+```bash
+cargo install --git https://github.com/AISCGre-BR/gregorio-lsp \
+  --tag v0.13.0 gregorio-server --bin gregorio-lsp
+# CLI tools (optional)
+cargo install --git https://github.com/AISCGre-BR/gregorio-lsp \
+  --tag v0.13.0 gregorio-cli
+```
+
 ## Building
 
 Requires `cargo` and `rustc` (2021 edition).

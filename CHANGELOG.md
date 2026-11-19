@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Release workflow (`.github/workflows/release.yml`) that builds prebuilt
+  `gregorio-lsp`, `grelint` and `grefmt` binaries for Linux (x86-64/ARM64,
+  static musl), macOS (Intel/Apple Silicon) and Windows (x86-64/ARM64) and
+  attaches them, with `SHA256SUMS`, to the GitHub Release of each `v*` tag.
+  It can also be run manually for an existing tag. Asset names follow
+  `gregorio-lsp-<rust-target>.tar.gz` (`.zip` on Windows); editor
+  integrations such as zed-gregorio rely on this naming.
+- README: installation section covering the prebuilt binaries and
+  `cargo install` from source.
+
 ## [0.13.0] - 2026-11-17
 
 ### Added
